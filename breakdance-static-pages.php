@@ -34,10 +34,10 @@ class Breakdance_Static_Pages {
     private static $instance = null;
     
     /**
-     * Get single instance
+     * Get single instance of the plugin
      */
     public static function get_instance() {
-        if (null === self::$instance) {
+        if (self::$instance === null) {
             self::$instance = new self();
         }
         return self::$instance;
@@ -229,13 +229,11 @@ class Breakdance_Static_Pages {
     }
     
     /**
-     * Get static file URL for a post
+     * Get static file URL for a post (admin-only access)
      */
     public static function get_static_file_url($post_id) {
-        $upload_dir = wp_upload_dir();
-        $static_url = $upload_dir['baseurl'] . '/breakdance-static-pages/pages';
-        
-        return $static_url . '/page-' . $post_id . '.html';
+        // Return admin-ajax URL for secure access
+        return admin_url('admin-ajax.php?action=bsp_serve_static&file=pages/page-' . $post_id . '.html');
     }
     
     /**

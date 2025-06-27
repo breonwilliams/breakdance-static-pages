@@ -18,6 +18,8 @@ class BSP_Ajax_Handler {
         add_action('wp_ajax_bsp_delete_multiple', array($this, 'handle_delete_multiple'));
         add_action('wp_ajax_bsp_toggle_static', array($this, 'handle_toggle_static'));
         add_action('wp_ajax_bsp_get_stats', array($this, 'handle_get_stats'));
+        add_action('wp_ajax_bsp_serve_static', array($this, 'serve_static_file'));
+        add_action('wp_ajax_nopriv_bsp_serve_static', array($this, 'serve_static_file_nopriv'));
     }
     
     /**
@@ -308,5 +310,73 @@ class BSP_Ajax_Handler {
                 'message' => __('Error: ', 'breakdance-static-pages') . $e->getMessage()
             ));
         }
+    }
+    
+    /**
+     * Serve static file to logged-in admins only
+     */
+    public function serve_static_file() {
+        // Check if user is logged in and has admin capabilities
+        if (!is_user_logged_in() || !current_user_can('manage_options')) {
+            wp_die(__('Access denied. Static files are only accessible to administrators.', 'breakdance-static-pages'), 'Access Denied', array('response' => 403));
+        }
+        
+        $this->serve_static_file_content();
+    }
+    
+    /**
+     * Handle non-privileged requests (deny access)
+     */
+    public function serve_static_file_nopriv() {
+        wp_die(__('Access denied. Static files are only accessible to administrators to prevent SEO duplicate content issues.', 'breakdance-static-pages'), 'Access Denied', array('response' => 403));
+    }
+    
+    /**
+     * Actually serve the static file content
+     */
+    private function serve_static_file_content() {
+        $file = sanitize_text_field($_GET['file']);
+        
+        if (empty($file)) {
+            wp_die(__('No file specified.', 'breakdance-static-pages'), 'Bad Request', array('response' => 400));
+        }
+        
+        // Security: Only allow files from the pages directory
+        if (strpos($file, '..') !== false || strpos($file, 'pages/') !== 0) {
+            wp_die(__('Invalid file path.', 'breakdance-static-pages'), 'Bad Request', array('response' => 400));
+        }
+        
+        $upload_dir = wp_upload_dir();
+        $file_path = $upload_dir['basedir'] . '/breakdance-static-pages/' . $file;
+        
+        // Check if file exists and is readable
+        if (!file_exists($file_path) || !is_readable($file_path)) {
+            wp_die(__('File not found.', 'breakdance-static-pages'), 'Not Found', array('response' => 404));
+        }
+        
+        // Security: Ensure it's an HTML file
+        if (pathinfo($file_path, PATHINFO_EXTENSION) !== 'html') {
+            wp_die(__('Invalid file type.', 'breakdance-static-pages'), 'Bad Request', array('response' => 400));
+        }
+        
+        // Set appropriate headers
+        header('Content-Type: text/html; charset=utf-8');
+        header('Cache-Control: no-cache, no-store, must-revalidate');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+        header('X-Robots-Tag: noindex, nofollow'); // Prevent search engine indexing
+        
+        // Add admin notice to the HTML
+        $content = file_get_contents($file_path);
+        $admin_notice = '
+        <div style="position: fixed; top: 0; left: 0; right: 0; background: #d63638; color: white; padding: 10px; text-align: center; z-index: 999999; font-family: Arial, sans-serif; font-size: 14px;">
+            <strong>ADMIN PREVIEW:</strong> This is a static file preview only accessible to administrators. Public users see the original dynamic page to prevent SEO issues.
+        </div>
+        <style>body { margin-top: 50px !important; }</style>';
+        
+        $content = str_replace('<body', $admin_notice . '<body', $content);
+        
+        echo $content;
+        exit;
     }
 }
