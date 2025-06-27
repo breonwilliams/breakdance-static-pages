@@ -72,6 +72,8 @@ class BSP_URL_Rewriter {
         $content = file_get_contents($file_path);
         
         if ($content === false) {
+            // Log the error for debugging
+            error_log('BSP: Failed to read static file: ' . $file_path);
             return; // Fall back to dynamic rendering
         }
         

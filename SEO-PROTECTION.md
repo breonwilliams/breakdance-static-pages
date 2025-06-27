@@ -28,11 +28,10 @@ Search engines could index both URLs, causing duplicate content penalties.
 
 #### Layer 1: .htaccess Protection
 ```apache
-# Deny all direct access
-Order Deny,Allow
-Deny from all
-
-# Redirect to WordPress authentication
+# Block direct browser access to HTML files (but allow internal PHP access)
+RewriteCond %{REQUEST_METHOD} ^(GET|POST|HEAD)$
+RewriteCond %{HTTP_USER_AGENT} !^$
+RewriteCond %{REQUEST_URI} \.html$
 RewriteRule ^(.*)$ /wp-admin/admin-ajax.php?action=bsp_serve_static&file=$1 [QSA,L]
 ```
 
