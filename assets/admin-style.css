@@ -287,6 +287,52 @@ input:checked + .bsp-slider:before {
     background-color: #f6f7f7;
 }
 
+/* Checkbox Alignment */
+.wp-list-table .check-column {
+    width: 2.2em;
+    padding: 8px 0 0 12px !important;
+    vertical-align: top;
+}
+
+.wp-list-table .check-column input[type="checkbox"] {
+    margin: 0;
+    padding: 0;
+    vertical-align: top;
+    position: relative;
+    top: 1px;
+}
+
+.wp-list-table thead .check-column input[type="checkbox"],
+.wp-list-table tfoot .check-column input[type="checkbox"] {
+    margin: 0;
+    padding: 0;
+    vertical-align: top;
+    position: relative;
+    top: 1px;
+}
+
+/* Ensure consistent checkbox positioning */
+.wp-list-table tbody .check-column input[type="checkbox"] {
+    margin: 0;
+    padding: 0;
+    vertical-align: top;
+    position: relative;
+    top: 1px;
+}
+
+/* Fix for WordPress admin table checkbox alignment */
+.wp-list-table .column-cb {
+    width: 2.2em;
+    padding: 8px 0 0 3px;
+}
+
+.wp-list-table .column-cb input[type="checkbox"] {
+    margin: 0;
+    vertical-align: top;
+    position: relative;
+    top: 1px;
+}
+
 /* Loading States */
 .bsp-loading {
     opacity: 0.6;
