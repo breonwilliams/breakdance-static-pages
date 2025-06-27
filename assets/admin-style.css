@@ -1,0 +1,451 @@
+/**
+ * Admin Styles for Breakdance Static Pages
+ */
+
+/* Main Admin Layout */
+.bsp-admin-header {
+    margin-bottom: 30px;
+}
+
+.bsp-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.bsp-stat-card {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+}
+
+.bsp-stat-card h3 {
+    margin: 0 0 5px 0;
+    font-size: 32px;
+    font-weight: 600;
+    color: #0073aa;
+}
+
+.bsp-stat-card p {
+    margin: 0;
+    color: #646970;
+    font-size: 14px;
+}
+
+/* Admin Content Layout */
+.bsp-admin-content {
+    float: left;
+    width: 75%;
+    margin-right: 20px;
+}
+
+.bsp-admin-sidebar {
+    float: right;
+    width: 22%;
+}
+
+.bsp-admin-content::after,
+.wrap::after {
+    content: "";
+    display: table;
+    clear: both;
+}
+
+/* Bulk Actions */
+.bsp-bulk-actions {
+    margin-bottom: 20px;
+    padding: 10px;
+    background: #f6f7f7;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+}
+
+.bsp-bulk-actions button {
+    margin-right: 10px;
+}
+
+/* Progress Bar */
+.bsp-progress {
+    margin: 20px 0;
+    background: #f6f7f7;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 15px;
+}
+
+.bsp-progress-bar {
+    width: 100%;
+    height: 20px;
+    background: #e5e5e5;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.bsp-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #0073aa, #005177);
+    width: 0%;
+    transition: width 0.3s ease;
+    border-radius: 10px;
+}
+
+.bsp-progress-text {
+    text-align: center;
+    font-weight: 500;
+    color: #646970;
+}
+
+/* Results */
+.bsp-results {
+    margin: 20px 0;
+    padding: 15px;
+    border-radius: 4px;
+}
+
+.bsp-results.success {
+    background: #d1e7dd;
+    border: 1px solid #badbcc;
+    color: #0f5132;
+}
+
+.bsp-results.error {
+    background: #f8d7da;
+    border: 1px solid #f5c2c7;
+    color: #842029;
+}
+
+/* Status Toggles */
+.bsp-status-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.bsp-switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+}
+
+.bsp-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.bsp-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 24px;
+}
+
+.bsp-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .bsp-slider {
+    background-color: #0073aa;
+}
+
+input:checked + .bsp-slider:before {
+    transform: translateX(26px);
+}
+
+/* Status Text */
+.bsp-status-active {
+    color: #0f5132;
+    font-weight: 500;
+}
+
+.bsp-status-pending {
+    color: #664d03;
+    font-weight: 500;
+}
+
+.bsp-status-disabled {
+    color: #842029;
+    font-weight: 500;
+}
+
+.bsp-text-muted {
+    color: #646970;
+}
+
+/* Actions */
+.bsp-actions {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+}
+
+.bsp-actions .button {
+    font-size: 12px;
+    padding: 4px 8px;
+    height: auto;
+    line-height: 1.4;
+}
+
+/* Info Cards */
+.bsp-info-card {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+}
+
+.bsp-info-card h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #1d2327;
+}
+
+.bsp-info-card ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.bsp-info-card li {
+    margin-bottom: 8px;
+    color: #646970;
+}
+
+/* Empty State */
+.bsp-empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #646970;
+}
+
+.bsp-empty-state h3 {
+    color: #1d2327;
+    margin-bottom: 10px;
+}
+
+/* Meta Box Styles */
+.bsp-meta-box {
+    padding: 0;
+}
+
+.bsp-meta-box p {
+    margin: 15px 0;
+}
+
+.bsp-meta-box .description {
+    font-style: italic;
+    color: #646970;
+    margin-top: 10px;
+}
+
+.bsp-meta-info {
+    background: #f6f7f7;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 15px;
+    margin-top: 15px;
+}
+
+.bsp-meta-info p {
+    margin: 10px 0;
+}
+
+.bsp-meta-info .button {
+    margin-right: 10px;
+}
+
+/* Table Enhancements */
+.wp-list-table .bsp-page-checkbox {
+    margin: 0;
+}
+
+.wp-list-table tr[data-post-id] {
+    transition: background-color 0.2s ease;
+}
+
+.wp-list-table tr[data-post-id]:hover {
+    background-color: #f6f7f7;
+}
+
+/* Loading States */
+.bsp-loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.bsp-loading::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #0073aa;
+    border-radius: 50%;
+    animation: bsp-spin 1s linear infinite;
+}
+
+@keyframes bsp-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsive Design */
+@media screen and (max-width: 1200px) {
+    .bsp-admin-content {
+        float: none;
+        width: 100%;
+        margin-right: 0;
+    }
+    
+    .bsp-admin-sidebar {
+        float: none;
+        width: 100%;
+        margin-top: 30px;
+    }
+}
+
+@media screen and (max-width: 768px) {
+    .bsp-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .bsp-bulk-actions {
+        text-align: center;
+    }
+    
+    .bsp-bulk-actions button {
+        margin: 5px;
+        display: block;
+        width: 100%;
+    }
+    
+    .bsp-actions {
+        flex-direction: column;
+    }
+    
+    .bsp-status-toggle {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .bsp-stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .bsp-stat-card h3 {
+        font-size: 24px;
+    }
+}
+
+/* Dashboard Widget Styles */
+.bsp-dashboard-widget .bsp-widget-stats {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 15px;
+}
+
+.bsp-dashboard-widget .bsp-stat-item {
+    text-align: center;
+    flex: 1;
+}
+
+.bsp-dashboard-widget .bsp-stat-number {
+    display: block;
+    font-size: 24px;
+    font-weight: bold;
+    color: #0073aa;
+}
+
+.bsp-dashboard-widget .bsp-stat-label {
+    display: block;
+    font-size: 12px;
+    color: #666;
+}
+
+.bsp-dashboard-widget .bsp-widget-details {
+    margin-bottom: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+}
+
+.bsp-dashboard-widget .bsp-widget-details p {
+    margin: 5px 0;
+    font-size: 13px;
+}
+
+/* Static Indicator */
+.bsp-static-indicator {
+    position: fixed;
+    top: 32px;
+    right: 20px;
+    background: #0073aa;
+    color: white;
+    padding: 10px 15px;
+    border-radius: 4px;
+    font-size: 12px;
+    z-index: 99999;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    cursor: pointer;
+    transition: opacity 0.3s ease;
+}
+
+.bsp-static-indicator:hover {
+    opacity: 0.8;
+}
+
+/* Admin Bar Adjustments */
+.admin-bar .bsp-static-indicator {
+    top: 64px;
+}
+
+@media screen and (max-width: 782px) {
+    .admin-bar .bsp-static-indicator {
+        top: 78px;
+    }
+}
+
+/* Accessibility */
+.bsp-switch:focus-within .bsp-slider {
+    box-shadow: 0 0 0 2px #0073aa;
+}
+
+.button:focus,
+.bsp-switch input:focus + .bsp-slider {
+    outline: 2px solid #0073aa;
+    outline-offset: 2px;
+}
+
+/* Print Styles */
+@media print {
+    .bsp-static-indicator,
+    .bsp-bulk-actions,
+    .bsp-actions {
+        display: none;
+    }
+}
