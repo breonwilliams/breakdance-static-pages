@@ -542,7 +542,7 @@ class BSP_Recovery_Manager {
      */
     public function handle_error_recovery($error) {
         // Only handle critical errors
-        if ($error['severity'] !== 'critical') {
+        if (!isset($error['severity']) || $error['severity'] !== 'critical') {
             return;
         }
         

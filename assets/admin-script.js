@@ -248,7 +248,7 @@ jQuery(document).ready(function($) {
                 success: function(response) {
                     if (response.success) {
                         BSP_Admin.showSuccess(response.data.message);
-                        BSP_Admin.refreshPageRow(postId);
+                        BSP_Admin.refreshPageRowAfterDelete(postId);
                     } else {
                         BSP_Admin.showError(response.data.message);
                     }
@@ -437,6 +437,37 @@ jQuery(document).ready(function($) {
                     actionsHtml += '<a href="' + data.static_url + '" target="_blank" class="button button-small">View Static</a>';
                 }
                 $actions.html(actionsHtml);
+            }
+        },
+
+        /**
+         * Refresh page row after deletion
+         */
+        refreshPageRowAfterDelete: function(postId) {
+            var $row = $('tr[data-post-id="' + postId + '"]');
+            
+            // Clear last generated and file size
+            $row.find('td:nth-child(5)').text('Never');
+            $row.find('td:nth-child(6)').text('—');
+            
+            // Check if static generation is enabled for this page
+            var $checkbox = $row.find('.bsp-static-toggle');
+            var isEnabled = $checkbox.is(':checked');
+            
+            // Update status based on whether static generation is enabled
+            var $statusText = $row.find('.bsp-status-text');
+            if (isEnabled) {
+                $statusText.html('<span class="bsp-status-pending">⏳ Needs Generation</span>');
+            } else {
+                $statusText.html('<span class="bsp-status-disabled">🐌 Dynamic</span>');
+            }
+            
+            // Update actions - only show Generate button if enabled
+            var $actions = $row.find('.bsp-actions');
+            if (isEnabled) {
+                $actions.html('<button type="button" class="button button-small bsp-generate-single" data-post-id="' + postId + '">Generate</button>');
+            } else {
+                $actions.html('<span class="description">Enable static generation first</span>');
             }
         },
         
