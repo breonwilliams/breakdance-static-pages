@@ -5,7 +5,7 @@ Convert Breakdance pages with ACF fields into lightning-fast static HTML files f
 ![WordPress](https://img.shields.io/badge/WordPress-5.0%2B-blue)
 ![PHP](https://img.shields.io/badge/PHP-7.4%2B-blue)
 ![License](https://img.shields.io/badge/License-GPL%20v2-green)
-![Version](https://img.shields.io/badge/Version-1.3.1-orange)
+![Version](https://img.shields.io/badge/Version-1.3.3-orange)
 
 ## ⚡ Features
 

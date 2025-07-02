@@ -121,8 +121,45 @@ jQuery(document).ready(function($) {
                 return;
             }
             
-            BSP_Admin.showProgress('Generating static files...');
+            BSP_Admin.showProgress('Starting bulk generation...');
+            var progressInterval = null;
+            var sessionId = null;
+            var isRequestComplete = false;
             
+            // First, start the progress polling immediately
+            progressInterval = setInterval(function() {
+                $.ajax({
+                    url: bsp_ajax.ajax_url,
+                    type: 'POST',
+                    data: {
+                        action: 'bsp_get_progress',
+                        session_id: sessionId,
+                        nonce: bsp_ajax.nonce
+                    },
+                    success: function(response) {
+                        if (response.success && response.data) {
+                            var progress = response.data;
+                            
+                            // Extract session ID from first response
+                            if (!sessionId && progress.id) {
+                                sessionId = progress.id;
+                            }
+                            
+                            if (progress.percentage !== undefined) {
+                                BSP_Admin.updateProgress(progress.percentage, progress.current_item || 'Processing...');
+                            }
+                            
+                            // Stop polling if completed and main request is done
+                            if ((progress.status === 'completed' || progress.status === 'failed') && isRequestComplete) {
+                                clearInterval(progressInterval);
+                                progressInterval = null;
+                            }
+                        }
+                    }
+                });
+            }, 500); // Poll every 500ms for smoother updates
+            
+            // Then start the bulk generation request
             $.ajax({
                 url: bsp_ajax.ajax_url,
                 type: 'POST',
@@ -133,6 +170,12 @@ jQuery(document).ready(function($) {
                 },
                 success: function(response) {
                     if (response.success) {
+                        // Extract session ID from response if we don't have it yet
+                        if (!sessionId && response.data.session_id) {
+                            sessionId = response.data.session_id;
+                        }
+                        
+                        BSP_Admin.updateProgress(100, 'Completed!');
                         BSP_Admin.showSuccess(response.data.message);
                         BSP_Admin.refreshPageData(selectedIds);
                     } else {
@@ -143,7 +186,15 @@ jQuery(document).ready(function($) {
                     BSP_Admin.showError('An error occurred during bulk generation.');
                 },
                 complete: function() {
-                    BSP_Admin.hideProgress();
+                    isRequestComplete = true;
+                    
+                    // Stop polling after a short delay if it's still running
+                    setTimeout(function() {
+                        if (progressInterval) {
+                            clearInterval(progressInterval);
+                        }
+                        BSP_Admin.hideProgress();
+                    }, 2000);
                 }
             });
         },
@@ -164,7 +215,44 @@ jQuery(document).ready(function($) {
             }
             
             BSP_Admin.showProgress('Deleting static files...');
+            var progressInterval = null;
+            var sessionId = null;
+            var isRequestComplete = false;
             
+            // First, start the progress polling immediately
+            progressInterval = setInterval(function() {
+                $.ajax({
+                    url: bsp_ajax.ajax_url,
+                    type: 'POST',
+                    data: {
+                        action: 'bsp_get_progress',
+                        session_id: sessionId,
+                        nonce: bsp_ajax.nonce
+                    },
+                    success: function(response) {
+                        if (response.success && response.data) {
+                            var progress = response.data;
+                            
+                            // Extract session ID from first response
+                            if (!sessionId && progress.id) {
+                                sessionId = progress.id;
+                            }
+                            
+                            if (progress.percentage !== undefined) {
+                                BSP_Admin.updateProgress(progress.percentage, progress.current_item || 'Deleting...');
+                            }
+                            
+                            // Stop polling if completed and main request is done
+                            if ((progress.status === 'completed' || progress.status === 'failed') && isRequestComplete) {
+                                clearInterval(progressInterval);
+                                progressInterval = null;
+                            }
+                        }
+                    }
+                });
+            }, 500); // Poll every 500ms for smoother updates
+            
+            // Then start the bulk deletion request
             $.ajax({
                 url: bsp_ajax.ajax_url,
                 type: 'POST',
@@ -175,6 +263,12 @@ jQuery(document).ready(function($) {
                 },
                 success: function(response) {
                     if (response.success) {
+                        // Extract session ID from response if we don't have it yet
+                        if (!sessionId && response.data.session_id) {
+                            sessionId = response.data.session_id;
+                        }
+                        
+                        BSP_Admin.updateProgress(100, 'Completed!');
                         BSP_Admin.showSuccess(response.data.message);
                         BSP_Admin.refreshPageData(selectedIds);
                     } else {
@@ -185,7 +279,15 @@ jQuery(document).ready(function($) {
                     BSP_Admin.showError('An error occurred during bulk deletion.');
                 },
                 complete: function() {
-                    BSP_Admin.hideProgress();
+                    isRequestComplete = true;
+                    
+                    // Stop polling after a short delay if it's still running
+                    setTimeout(function() {
+                        if (progressInterval) {
+                            clearInterval(progressInterval);
+                        }
+                        BSP_Admin.hideProgress();
+                    }, 2000);
                 }
             });
         },

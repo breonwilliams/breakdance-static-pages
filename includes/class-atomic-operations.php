@@ -106,7 +106,18 @@ class BSP_Atomic_Operations {
             $method->setAccessible(true);
             $optimized_html = $method->invoke($generator, $html_content, $post_id);
             
-            // Step 6: Write to temporary file
+            // Step 6: Ensure directory exists before writing
+            $temp_dir = dirname($temp_file);
+            if (!file_exists($temp_dir)) {
+                wp_mkdir_p($temp_dir);
+                
+                // Verify directory was created
+                if (!file_exists($temp_dir)) {
+                    throw new Exception('Failed to create directory: ' . $temp_dir);
+                }
+            }
+            
+            // Write to temporary file
             if (file_put_contents($temp_file, $optimized_html, LOCK_EX) === false) {
                 throw new Exception('Failed to write temporary file');
             }
@@ -265,15 +276,38 @@ class BSP_Atomic_Operations {
      *
      * @param array $post_ids Array of post IDs
      * @param string $operation Operation type ('generate' or 'delete')
+     * @param string|null $session_id Progress tracking session ID
      * @return array Operation results
      */
-    public static function bulk_operation_atomic($post_ids, $operation = 'generate') {
+    public static function bulk_operation_atomic($post_ids, $operation = 'generate', $session_id = null) {
         $completed = array();
         $failed = array();
         $rollback_all = array();
         
+        // Get progress tracker instance if session provided
+        $progress_tracker = null;
+        if ($session_id) {
+            $progress_tracker = BSP_Progress_Tracker::get_instance();
+        }
+        
         try {
+            $total = count($post_ids);
+            $current = 0;
+            
             foreach ($post_ids as $post_id) {
+                $current++;
+                
+                // Update progress
+                if ($progress_tracker && $session_id) {
+                    $post_title = get_the_title($post_id);
+                    $progress_tracker->update_progress($session_id, $current, sprintf(
+                        'Processing %s (%d of %d)',
+                        $post_title ?: "Post #{$post_id}",
+                        $current,
+                        $total
+                    ));
+                }
+                
                 if ($operation === 'generate') {
                     $result = self::generate_with_rollback($post_id);
                 } else {

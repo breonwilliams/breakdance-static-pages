@@ -153,32 +153,93 @@ class BSP_Health_Check {
         );
         
         $upload_dir = wp_upload_dir();
+        $base_static_dir = $upload_dir['basedir'] . '/breakdance-static-pages/';
+        
+        // Include all necessary directories including subdirectories
         $directories = array(
-            'static_dir' => $upload_dir['basedir'] . '/breakdance-static-pages/',
-            'pages_dir' => $upload_dir['basedir'] . '/breakdance-static-pages/pages/',
-            'lock_dir' => $upload_dir['basedir'] . '/bsp-locks/'
+            'upload_dir' => $upload_dir['basedir'],
+            'static_dir' => $base_static_dir,
+            'pages_dir' => $base_static_dir . 'pages/',
+            'services_dir' => $base_static_dir . 'pages/services/',
+            'areas_dir' => $base_static_dir . 'pages/areas-we-serve/',
+            'assets_dir' => $base_static_dir . 'assets/',
+            'cache_dir' => $base_static_dir . 'cache/',
+            'locks_dir' => $upload_dir['basedir'] . '/bsp-locks/'
         );
         
+        $permission_issues = array();
+        
         foreach ($directories as $key => $dir) {
+            $dir_status = array(
+                'path' => $dir,
+                'exists' => file_exists($dir),
+                'writable' => false,
+                'permissions' => 'unknown'
+            );
+            
             if (!file_exists($dir)) {
                 // Try to create it
                 if (!wp_mkdir_p($dir)) {
                     $result['status'] = 'critical';
-                    $result['message'] = sprintf('Cannot create directory: %s', $dir);
-                    $result['recommendation'] = 'Check file permissions on wp-content/uploads/';
-                    $result['details'][$key] = 'missing';
+                    $permission_issues[] = sprintf('Cannot create directory: %s', $dir);
+                    $dir_status['error'] = 'Cannot create directory';
+                    $result['details'][$key] = $dir_status;
                     continue;
                 }
             }
             
-            if (!is_writable($dir)) {
-                $result['status'] = 'critical';
-                $result['message'] = sprintf('Directory not writable: %s', $dir);
-                $result['recommendation'] = sprintf('Run: chmod 755 %s', $dir);
-                $result['details'][$key] = 'not_writable';
-            } else {
-                $result['details'][$key] = 'ok';
+            // Get actual permissions
+            if (file_exists($dir)) {
+                $perms = fileperms($dir);
+                $dir_status['permissions'] = substr(sprintf('%o', $perms), -4);
+                $dir_status['writable'] = is_writable($dir);
+                
+                if (!is_writable($dir)) {
+                    $result['status'] = 'critical';
+                    $permission_issues[] = sprintf('Directory not writable: %s (permissions: %s)', $dir, $dir_status['permissions']);
+                    $dir_status['error'] = 'Not writable';
+                    
+                    // Get owner information if possible
+                    if (function_exists('posix_getpwuid') && function_exists('fileowner')) {
+                        $owner_info = posix_getpwuid(fileowner($dir));
+                        $dir_status['owner'] = $owner_info ? $owner_info['name'] : 'unknown';
+                    }
+                }
             }
+            
+            $result['details'][$key] = $dir_status;
+        }
+        
+        // Test actual file creation in the main static directory
+        if (file_exists($base_static_dir) && is_writable($base_static_dir)) {
+            $test_file = $base_static_dir . 'test_' . uniqid() . '.tmp';
+            $test_result = @file_put_contents($test_file, 'test');
+            
+            if ($test_result === false) {
+                $result['status'] = 'critical';
+                $permission_issues[] = 'Cannot write files to static directory despite writable permissions';
+                $result['details']['write_test'] = 'failed';
+            } else {
+                @unlink($test_file);
+                $result['details']['write_test'] = 'passed';
+            }
+        }
+        
+        if (!empty($permission_issues)) {
+            $result['message'] = 'Permission issues detected: ' . implode('; ', array_slice($permission_issues, 0, 3));
+            if (count($permission_issues) > 3) {
+                $result['message'] .= sprintf(' and %d more issues', count($permission_issues) - 3);
+            }
+            
+            // Provide specific recommendations based on the server
+            $server_user = function_exists('get_current_user') ? get_current_user() : 'www-data';
+            $result['recommendation'] = sprintf(
+                'Fix permissions with: sudo chown -R %s:%s %s && sudo chmod -R 755 %s',
+                $server_user,
+                $server_user,
+                $upload_dir['basedir'] . '/breakdance-static-pages/',
+                $upload_dir['basedir'] . '/breakdance-static-pages/'
+            );
         }
         
         return $result;

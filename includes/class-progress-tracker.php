@@ -340,8 +340,17 @@ class BSP_Progress_Tracker {
         
         $session_id = isset($_POST['session_id']) ? sanitize_text_field($_POST['session_id']) : '';
         
+        // If no session ID provided, get the most recent active session
         if (empty($session_id)) {
-            wp_send_json_error('No session ID provided');
+            $active_sessions = $this->get_all_active_sessions();
+            if (!empty($active_sessions)) {
+                // Get the most recent session
+                $progress = reset($active_sessions);
+                wp_send_json_success($progress);
+            } else {
+                wp_send_json_error('No active progress sessions');
+            }
+            return;
         }
         
         $progress = $this->get_progress($session_id);

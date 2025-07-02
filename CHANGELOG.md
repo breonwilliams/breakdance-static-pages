@@ -5,6 +5,34 @@ All notable changes to the Breakdance Static Pages plugin will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] - 2024-12-02
+
+### Fixed
+- **Progress Bar Updates** - Fixed real-time progress bar updates during bulk static page generation
+- **Session ID Handling** - Improved session ID extraction for progress tracking
+- **Bulk Delete Progress** - Added progress tracking for bulk delete operations
+
+### Improved
+- **JavaScript Polling** - Starts progress polling immediately for better responsiveness
+- **Progress Updates** - Shows current page being processed during bulk operations
+- **Session Management** - Better handling of progress session lifecycle
+
+## [1.3.2] - 2024-12-02
+
+### Fixed
+- **Directory Creation** - Fixed "Failed to write temporary file" error by ensuring subdirectories are created
+- **Permission Detection** - Enhanced health check to detect and report specific permission issues
+- **Error Messages** - More descriptive error messages for permission problems
+
+### Added
+- **Enhanced Health Check** - Detailed permission checking for all required directories
+- **Permission Documentation** - Added comprehensive guide for fixing permission errors
+- **Directory Auto-Creation** - Automatically creates subdirectories during file generation
+
+### Improved
+- **Error Recovery** - Better handling of file system errors with detailed diagnostics
+- **Health Check Details** - Shows actual file permissions and ownership information
+
 ## [1.3.1] - 2024-12-02
 
 ### Added

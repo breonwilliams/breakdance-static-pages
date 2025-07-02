@@ -156,8 +156,18 @@ class BSP_Ajax_Handler {
 			// Increase time limit for bulk operations.
 			set_time_limit( 0 );
 
-			// Use atomic bulk operations.
-			$result = BSP_Atomic_Operations::bulk_operation_atomic( $post_ids, 'generate' );
+			// Initialize progress tracking.
+			$progress_tracker = BSP_Progress_Tracker::get_instance();
+			$session_id = $progress_tracker->start_progress( 'bulk_generation', count( $post_ids ), array(
+				'post_ids' => $post_ids,
+				'user_id'  => get_current_user_id(),
+			) );
+
+			// Use atomic bulk operations with progress tracking.
+			$result = BSP_Atomic_Operations::bulk_operation_atomic( $post_ids, 'generate', $session_id );
+
+			// Mark progress as complete.
+			$progress_tracker->complete_progress( $session_id );
 
 			wp_send_json_success( array(
 				'message' => sprintf(
@@ -166,6 +176,7 @@ class BSP_Ajax_Handler {
 					$result['success_count'],
 					$result['failure_count']
 				),
+				'session_id'    => $session_id,
 				'results'       => $result['completed'],
 				'failed'        => $result['failed'],
 				'success_count' => $result['success_count'],
@@ -264,8 +275,18 @@ class BSP_Ajax_Handler {
 		}
 
 		try {
-			// Use atomic bulk operations for deletion.
-			$result = BSP_Atomic_Operations::bulk_operation_atomic( $post_ids, 'delete' );
+			// Initialize progress tracking.
+			$progress_tracker = BSP_Progress_Tracker::get_instance();
+			$session_id = $progress_tracker->start_progress( 'bulk_deletion', count( $post_ids ), array(
+				'post_ids' => $post_ids,
+				'user_id'  => get_current_user_id(),
+			) );
+
+			// Use atomic bulk operations with progress tracking.
+			$result = BSP_Atomic_Operations::bulk_operation_atomic( $post_ids, 'delete', $session_id );
+
+			// Mark progress as complete.
+			$progress_tracker->complete_progress( $session_id );
 
 			wp_send_json_success( array(
 				'message' => sprintf(
@@ -274,6 +295,7 @@ class BSP_Ajax_Handler {
 					$result['success_count'],
 					$result['failure_count']
 				),
+				'session_id'    => $session_id,
 				'success_count' => $result['success_count'],
 				'error_count'   => $result['failure_count'],
 			) );
