@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('BSP_VERSION', '1.0.0');
+define('BSP_VERSION', '1.1.0');
 define('BSP_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('BSP_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('BSP_PLUGIN_FILE', __FILE__);
@@ -70,6 +70,26 @@ class Breakdance_Static_Pages {
      * Load plugin dependencies
      */
     private function load_dependencies() {
+        // Phase 1: Foundation
+        require_once BSP_PLUGIN_DIR . 'includes/class-file-lock-manager.php';
+        require_once BSP_PLUGIN_DIR . 'includes/class-health-check.php';
+        
+        // Phase 2: Performance
+        require_once BSP_PLUGIN_DIR . 'includes/class-stats-cache.php';
+        
+        // Phase 3: Reliability
+        require_once BSP_PLUGIN_DIR . 'includes/class-error-handler.php';
+        require_once BSP_PLUGIN_DIR . 'includes/class-retry-manager.php';
+        require_once BSP_PLUGIN_DIR . 'includes/class-atomic-operations.php';
+        require_once BSP_PLUGIN_DIR . 'includes/class-recovery-manager.php';
+        
+        // Phase 4: Scalability
+        require_once BSP_PLUGIN_DIR . 'includes/class-queue-manager.php';
+        require_once BSP_PLUGIN_DIR . 'includes/class-batch-processor.php';
+        require_once BSP_PLUGIN_DIR . 'includes/class-progress-tracker.php';
+        require_once BSP_PLUGIN_DIR . 'includes/class-rest-api.php';
+        
+        // Core components
         require_once BSP_PLUGIN_DIR . 'includes/class-static-generator.php';
         require_once BSP_PLUGIN_DIR . 'includes/class-cache-manager.php';
         require_once BSP_PLUGIN_DIR . 'includes/class-admin-interface.php';
@@ -82,6 +102,18 @@ class Breakdance_Static_Pages {
      * Initialize hooks
      */
     private function init_hooks() {
+        // Initialize error handler first (used by other components)
+        BSP_Error_Handler::get_instance();
+        
+        // Initialize recovery manager
+        BSP_Recovery_Manager::get_instance();
+        
+        // Initialize scalability components
+        BSP_Queue_Manager::get_instance();
+        BSP_Batch_Processor::get_instance();
+        BSP_Progress_Tracker::get_instance();
+        new BSP_REST_API();
+        
         // Initialize admin interface
         if (is_admin()) {
             new BSP_Admin_Interface();
@@ -100,6 +132,11 @@ class Breakdance_Static_Pages {
         
         // Initialize performance monitor
         new BSP_Performance_Monitor();
+        
+        // Initialize health check
+        if (is_admin()) {
+            new BSP_Health_Check();
+        }
         
         // Hook into ACF and Breakdance updates
         add_action('acf/save_post', array($this, 'handle_content_update'), 20);
@@ -178,6 +215,12 @@ class Breakdance_Static_Pages {
      * Plugin activation
      */
     public function activate() {
+        // Load dependencies first
+        $this->load_dependencies();
+        
+        // Add database version
+        add_option('bsp_db_version', BSP_VERSION);
+        
         // Create static files directory
         $upload_dir = wp_upload_dir();
         $static_dir = $upload_dir['basedir'] . '/breakdance-static-pages';
@@ -187,6 +230,13 @@ class Breakdance_Static_Pages {
             wp_mkdir_p($static_dir . '/pages');
             wp_mkdir_p($static_dir . '/assets');
         }
+        
+        // Create lock directory (now the class is loaded)
+        $lock_manager = BSP_File_Lock_Manager::get_instance();
+        
+        // Create queue table
+        $queue_manager = BSP_Queue_Manager::get_instance();
+        $queue_manager->create_table();
         
         // Create .htaccess for static files
         $htaccess_content = "# Breakdance Static Pages\n";
@@ -202,6 +252,11 @@ class Breakdance_Static_Pages {
             wp_schedule_event(time(), 'daily', 'bsp_cleanup_old_static_files');
         }
         
+        // Schedule lock cleanup
+        if (!wp_next_scheduled('bsp_cleanup_locks')) {
+            wp_schedule_event(time(), 'hourly', 'bsp_cleanup_locks');
+        }
+        
         // Flush rewrite rules
         flush_rewrite_rules();
     }
@@ -213,6 +268,13 @@ class Breakdance_Static_Pages {
         // Clear scheduled events
         wp_clear_scheduled_hook('bsp_cleanup_old_static_files');
         wp_clear_scheduled_hook('bsp_regenerate_static_page');
+        wp_clear_scheduled_hook('bsp_cleanup_locks');
+        wp_clear_scheduled_hook('bsp_cleanup_error_logs');
+        wp_clear_scheduled_hook('bsp_hourly_recovery');
+        wp_clear_scheduled_hook('bsp_daily_recovery');
+        wp_clear_scheduled_hook('bsp_process_queue');
+        wp_clear_scheduled_hook('bsp_queue_cleanup');
+        wp_clear_scheduled_hook('bsp_cleanup_progress_sessions');
         
         // Flush rewrite rules
         flush_rewrite_rules();
@@ -281,11 +343,10 @@ add_action('admin_post_bsp_regenerate_page', function() {
         wp_die('Security check failed');
     }
     
-    // Regenerate static page
-    $generator = new BSP_Static_Generator();
-    $result = $generator->generate_static_page($post_id);
+    // Regenerate static page using atomic operations
+    $result = BSP_Atomic_Operations::generate_with_rollback($post_id);
     
-    if ($result) {
+    if ($result['success']) {
         wp_redirect(add_query_arg('bsp_regenerated', '1', get_permalink($post_id)));
     } else {
         wp_redirect(add_query_arg('bsp_error', '1', get_permalink($post_id)));
@@ -295,12 +356,23 @@ add_action('admin_post_bsp_regenerate_page', function() {
 
 // Handle scheduled regeneration
 add_action('bsp_regenerate_static_page', function($post_id) {
-    $generator = new BSP_Static_Generator();
-    $generator->generate_static_page($post_id);
+    // Use atomic operations with retry
+    BSP_Retry_Manager::retry(
+        function() use ($post_id) {
+            return BSP_Atomic_Operations::generate_with_rollback($post_id);
+        },
+        array('max_attempts' => 2)
+    );
 });
 
 // Handle cleanup
 add_action('bsp_cleanup_old_static_files', function() {
     $cache_manager = new BSP_Cache_Manager();
     $cache_manager->cleanup_old_files();
+});
+
+// Handle lock cleanup
+add_action('bsp_cleanup_locks', function() {
+    $lock_manager = BSP_File_Lock_Manager::get_instance();
+    $lock_manager->cleanup_expired_locks();
 });

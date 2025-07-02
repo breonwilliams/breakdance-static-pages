@@ -20,6 +20,20 @@ class BSP_Ajax_Handler {
         add_action('wp_ajax_bsp_get_stats', array($this, 'handle_get_stats'));
         add_action('wp_ajax_bsp_serve_static', array($this, 'serve_static_file'));
         add_action('wp_ajax_nopriv_bsp_serve_static', array($this, 'serve_static_file_nopriv'));
+        
+        // Maintenance actions
+        add_action('wp_ajax_bsp_cleanup_orphaned', array($this, 'handle_cleanup_orphaned'));
+        add_action('wp_ajax_bsp_clear_all_locks', array($this, 'handle_clear_all_locks'));
+        add_action('wp_ajax_bsp_delete_all_static', array($this, 'handle_delete_all_static'));
+        
+        // Error handling actions
+        add_action('wp_ajax_bsp_clear_errors', array($this, 'handle_clear_errors'));
+        add_action('wp_ajax_bsp_export_errors', array($this, 'handle_export_errors'));
+        
+        // Queue management actions
+        add_action('wp_ajax_bsp_retry_failed_queue', array($this, 'handle_retry_failed_queue'));
+        add_action('wp_ajax_bsp_clear_completed_queue', array($this, 'handle_clear_completed_queue'));
+        add_action('wp_ajax_bsp_clear_all_queue', array($this, 'handle_clear_all_queue'));
     }
     
     /**
@@ -40,10 +54,13 @@ class BSP_Ajax_Handler {
         }
         
         try {
-            $generator = new BSP_Static_Generator();
-            $result = $generator->generate_static_page($post_id);
+            // Use atomic operations for single page generation
+            $result = BSP_Atomic_Operations::generate_with_rollback($post_id);
             
-            if ($result) {
+            if ($result['success']) {
+                // Invalidate stats cache after successful generation
+                BSP_Stats_Cache::invalidate();
+                
                 $file_size = get_post_meta($post_id, '_bsp_static_file_size', true);
                 $generated_time = get_post_meta($post_id, '_bsp_static_generated', true);
                 
@@ -56,7 +73,7 @@ class BSP_Ajax_Handler {
                 ));
             } else {
                 wp_send_json_error(array(
-                    'message' => __('Failed to generate static file. Check error logs for details.', 'breakdance-static-pages')
+                    'message' => __('Failed to generate static file: ', 'breakdance-static-pages') . $result['error']
                 ));
             }
             
@@ -88,43 +105,19 @@ class BSP_Ajax_Handler {
             // Increase time limit for bulk operations
             set_time_limit(0);
             
-            $generator = new BSP_Static_Generator();
-            $results = array();
-            $success_count = 0;
-            $error_count = 0;
-            
-            foreach ($post_ids as $post_id) {
-                $result = $generator->generate_static_page($post_id);
-                $results[$post_id] = $result;
-                
-                if ($result) {
-                    $success_count++;
-                } else {
-                    $error_count++;
-                }
-                
-                // Send progress update
-                $progress = array(
-                    'current' => count($results),
-                    'total' => count($post_ids),
-                    'success' => $success_count,
-                    'errors' => $error_count,
-                    'percentage' => round((count($results) / count($post_ids)) * 100)
-                );
-                
-                // For real-time updates, you could implement Server-Sent Events here
-                // For now, we'll just continue processing
-            }
+            // Use atomic bulk operations
+            $result = BSP_Atomic_Operations::bulk_operation_atomic($post_ids, 'generate');
             
             wp_send_json_success(array(
                 'message' => sprintf(
                     __('Bulk generation completed. %d successful, %d errors.', 'breakdance-static-pages'),
-                    $success_count,
-                    $error_count
+                    $result['success_count'],
+                    $result['failure_count']
                 ),
-                'results' => $results,
-                'success_count' => $success_count,
-                'error_count' => $error_count
+                'results' => $result['completed'],
+                'failed' => $result['failed'],
+                'success_count' => $result['success_count'],
+                'error_count' => $result['failure_count']
             ));
             
         } catch (Exception $e) {
@@ -152,17 +145,17 @@ class BSP_Ajax_Handler {
         }
         
         try {
-            $generator = new BSP_Static_Generator();
-            $result = $generator->delete_static_page($post_id);
+            // Use atomic operations for single page deletion
+            $result = BSP_Atomic_Operations::delete_with_rollback($post_id);
             
-            if ($result) {
+            if ($result['success']) {
                 wp_send_json_success(array(
                     'message' => __('Static file deleted successfully!', 'breakdance-static-pages'),
                     'post_id' => $post_id
                 ));
             } else {
                 wp_send_json_error(array(
-                    'message' => __('Failed to delete static file.', 'breakdance-static-pages')
+                    'message' => __('Failed to delete static file: ', 'breakdance-static-pages') . $result['error']
                 ));
             }
             
@@ -191,28 +184,17 @@ class BSP_Ajax_Handler {
         }
         
         try {
-            $generator = new BSP_Static_Generator();
-            $success_count = 0;
-            $error_count = 0;
-            
-            foreach ($post_ids as $post_id) {
-                $result = $generator->delete_static_page($post_id);
-                
-                if ($result) {
-                    $success_count++;
-                } else {
-                    $error_count++;
-                }
-            }
+            // Use atomic bulk operations for deletion
+            $result = BSP_Atomic_Operations::bulk_operation_atomic($post_ids, 'delete');
             
             wp_send_json_success(array(
                 'message' => sprintf(
                     __('Bulk deletion completed. %d successful, %d errors.', 'breakdance-static-pages'),
-                    $success_count,
-                    $error_count
+                    $result['success_count'],
+                    $result['failure_count']
                 ),
-                'success_count' => $success_count,
-                'error_count' => $error_count
+                'success_count' => $result['success_count'],
+                'error_count' => $result['failure_count']
             ));
             
         } catch (Exception $e) {
@@ -246,8 +228,7 @@ class BSP_Ajax_Handler {
             
             // If disabled, delete the static file
             if (!$enabled) {
-                $generator = new BSP_Static_Generator();
-                $generator->delete_static_page($post_id);
+                BSP_Atomic_Operations::delete_with_rollback($post_id);
             }
             
             wp_send_json_success(array(
@@ -275,33 +256,8 @@ class BSP_Ajax_Handler {
         }
         
         try {
-            $generator = new BSP_Static_Generator();
-            $stats = $generator->get_generation_stats();
-            
-            // Add additional stats
-            global $wpdb;
-            
-            $stats['total_pages'] = $wpdb->get_var(
-                "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type IN ('page', 'post') AND post_status = 'publish'"
-            );
-            
-            // Calculate performance metrics
-            $upload_dir = wp_upload_dir();
-            $static_dir = $upload_dir['basedir'] . '/breakdance-static-pages/pages';
-            
-            if (file_exists($static_dir)) {
-                $files = glob($static_dir . '/*.html');
-                $stats['static_files_count'] = count($files);
-                
-                $total_size = 0;
-                foreach ($files as $file) {
-                    $total_size += filesize($file);
-                }
-                $stats['total_disk_usage'] = $total_size;
-            } else {
-                $stats['static_files_count'] = 0;
-                $stats['total_disk_usage'] = 0;
-            }
+            // Use cached stats for better performance
+            $stats = BSP_Stats_Cache::get_detailed_stats();
             
             wp_send_json_success($stats);
             
@@ -378,5 +334,157 @@ class BSP_Ajax_Handler {
         
         echo $content;
         exit;
+    }
+    
+    /**
+     * Handle cleanup orphaned files
+     */
+    public function handle_cleanup_orphaned() {
+        if (!wp_verify_nonce($_POST['nonce'], 'bsp_nonce') || !current_user_can('manage_options')) {
+            wp_send_json_error('Security check failed');
+        }
+        
+        $cache_manager = new BSP_Cache_Manager();
+        $cleaned = $cache_manager->cleanup_orphaned_files();
+        
+        wp_send_json_success(array(
+            'message' => sprintf(__('Cleaned up %d orphaned files', 'breakdance-static-pages'), $cleaned)
+        ));
+    }
+    
+    /**
+     * Handle clear all locks
+     */
+    public function handle_clear_all_locks() {
+        if (!wp_verify_nonce($_POST['nonce'], 'bsp_nonce') || !current_user_can('manage_options')) {
+            wp_send_json_error('Security check failed');
+        }
+        
+        $lock_manager = BSP_File_Lock_Manager::get_instance();
+        $cleared = $lock_manager->force_release_all_locks();
+        
+        wp_send_json_success(array(
+            'message' => sprintf(__('Cleared %d locks', 'breakdance-static-pages'), $cleared)
+        ));
+    }
+    
+    /**
+     * Handle delete all static files
+     */
+    public function handle_delete_all_static() {
+        if (!wp_verify_nonce($_POST['nonce'], 'bsp_nonce') || !current_user_can('manage_options')) {
+            wp_send_json_error('Security check failed');
+        }
+        
+        global $wpdb;
+        
+        // Get all posts with static files
+        $posts = $wpdb->get_col("
+            SELECT post_id 
+            FROM {$wpdb->postmeta} 
+            WHERE meta_key = '_bsp_static_generated'
+        ");
+        
+        $deleted = 0;
+        
+        foreach ($posts as $post_id) {
+            $file_path = Breakdance_Static_Pages::get_static_file_path($post_id);
+            
+            if (file_exists($file_path) && unlink($file_path)) {
+                $deleted++;
+                
+                // Clean up metadata
+                delete_post_meta($post_id, '_bsp_static_generated');
+                delete_post_meta($post_id, '_bsp_static_file_size');
+                delete_post_meta($post_id, '_bsp_static_etag');
+                delete_post_meta($post_id, '_bsp_static_etag_time');
+            }
+        }
+        
+        wp_send_json_success(array(
+            'message' => sprintf(__('Deleted %d static files', 'breakdance-static-pages'), $deleted)
+        ));
+    }
+    
+    /**
+     * Handle clear errors
+     */
+    public function handle_clear_errors() {
+        if (!wp_verify_nonce($_POST['nonce'], 'bsp_nonce') || !current_user_can('manage_options')) {
+            wp_send_json_error('Security check failed');
+        }
+        
+        $error_handler = BSP_Error_Handler::get_instance();
+        $error_handler->clear_errors();
+        
+        wp_send_json_success(array(
+            'message' => __('All errors cleared successfully', 'breakdance-static-pages')
+        ));
+    }
+    
+    /**
+     * Handle export errors
+     */
+    public function handle_export_errors() {
+        if (!wp_verify_nonce($_POST['nonce'], 'bsp_nonce') || !current_user_can('manage_options')) {
+            wp_send_json_error('Security check failed');
+        }
+        
+        $error_handler = BSP_Error_Handler::get_instance();
+        $export_data = $error_handler->export_errors();
+        
+        wp_send_json_success(array(
+            'message' => __('Errors exported successfully', 'breakdance-static-pages'),
+            'data' => $export_data,
+            'filename' => 'bsp-errors-' . date('Y-m-d-His') . '.json'
+        ));
+    }
+    
+    /**
+     * Handle retry failed queue items
+     */
+    public function handle_retry_failed_queue() {
+        if (!wp_verify_nonce($_POST['nonce'], 'bsp_nonce') || !current_user_can('manage_options')) {
+            wp_send_json_error('Security check failed');
+        }
+        
+        $queue_manager = BSP_Queue_Manager::get_instance();
+        $retried = $queue_manager->retry_failed_items();
+        
+        wp_send_json_success(array(
+            'message' => sprintf(__('%d failed items set to retry', 'breakdance-static-pages'), $retried)
+        ));
+    }
+    
+    /**
+     * Handle clear completed queue items
+     */
+    public function handle_clear_completed_queue() {
+        if (!wp_verify_nonce($_POST['nonce'], 'bsp_nonce') || !current_user_can('manage_options')) {
+            wp_send_json_error('Security check failed');
+        }
+        
+        $queue_manager = BSP_Queue_Manager::get_instance();
+        $cleared = $queue_manager->clear_queue('completed');
+        
+        wp_send_json_success(array(
+            'message' => sprintf(__('%d completed items cleared', 'breakdance-static-pages'), $cleared)
+        ));
+    }
+    
+    /**
+     * Handle clear all queue items
+     */
+    public function handle_clear_all_queue() {
+        if (!wp_verify_nonce($_POST['nonce'], 'bsp_nonce') || !current_user_can('manage_options')) {
+            wp_send_json_error('Security check failed');
+        }
+        
+        $queue_manager = BSP_Queue_Manager::get_instance();
+        $cleared = $queue_manager->clear_queue();
+        
+        wp_send_json_success(array(
+            'message' => __('Queue cleared successfully', 'breakdance-static-pages')
+        ));
     }
 }

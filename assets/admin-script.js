@@ -541,3 +541,314 @@ jQuery(document).ready(function($) {
     }
 
 });
+
+// Health Check functionality
+jQuery(document).ready(function($) {
+    // Run health check
+    $('#bsp-run-health-check').on('click', function() {
+        var $button = $(this);
+        var $spinner = $button.next('.spinner');
+        
+        $button.prop('disabled', true);
+        $spinner.addClass('is-active');
+        
+        $.ajax({
+            url: bsp_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'bsp_health_check',
+                nonce: bsp_ajax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Reload page to show updated results
+                    window.location.reload();
+                } else {
+                    alert('Health check failed: ' + response.data);
+                }
+            },
+            error: function() {
+                alert('Error running health check');
+            },
+            complete: function() {
+                $button.prop('disabled', false);
+                $spinner.removeClass('is-active');
+            }
+        });
+    });
+    
+    // Maintenance actions
+    $('#bsp-cleanup-orphaned').on('click', function() {
+        if (!confirm('Clean up orphaned static files?')) {
+            return;
+        }
+        
+        var $button = $(this);
+        $button.prop('disabled', true);
+        
+        $.ajax({
+            url: bsp_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'bsp_cleanup_orphaned',
+                nonce: bsp_ajax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    alert('Cleanup completed: ' + response.data.message);
+                } else {
+                    alert('Cleanup failed: ' + response.data);
+                }
+            },
+            complete: function() {
+                $button.prop('disabled', false);
+            }
+        });
+    });
+    
+    $('#bsp-clear-all-locks').on('click', function() {
+        if (!confirm('Clear all file locks? This should only be done if you\'re sure no generation is in progress.')) {
+            return;
+        }
+        
+        var $button = $(this);
+        $button.prop('disabled', true);
+        
+        $.ajax({
+            url: bsp_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'bsp_clear_all_locks',
+                nonce: bsp_ajax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    alert('Locks cleared: ' + response.data.message);
+                } else {
+                    alert('Failed to clear locks: ' + response.data);
+                }
+            },
+            complete: function() {
+                $button.prop('disabled', false);
+            }
+        });
+    });
+    
+    $('#bsp-delete-all-static').on('click', function() {
+        var $button = $(this);
+        $button.prop('disabled', true);
+        
+        $.ajax({
+            url: bsp_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'bsp_delete_all_static',
+                nonce: bsp_ajax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    alert('All static files deleted');
+                    window.location.reload();
+                } else {
+                    alert('Failed to delete files: ' + response.data);
+                }
+            },
+            complete: function() {
+                $button.prop('disabled', false);
+            }
+        });
+    });
+    
+    // Error management actions
+    $('#bsp-clear-errors').on('click', function() {
+        if (!confirm('Clear all error logs?')) {
+            return;
+        }
+        
+        var $button = $(this);
+        $button.prop('disabled', true);
+        
+        $.ajax({
+            url: bsp_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'bsp_clear_errors',
+                nonce: bsp_ajax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    alert('Errors cleared successfully');
+                    window.location.reload();
+                } else {
+                    alert('Failed to clear errors: ' + response.data);
+                }
+            },
+            complete: function() {
+                $button.prop('disabled', false);
+            }
+        });
+    });
+    
+    $('#bsp-export-errors').on('click', function() {
+        var $button = $(this);
+        $button.prop('disabled', true);
+        
+        $.ajax({
+            url: bsp_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'bsp_export_errors',
+                nonce: bsp_ajax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Create and download JSON file
+                    var blob = new Blob([response.data.data], {type: 'application/json'});
+                    var url = window.URL.createObjectURL(blob);
+                    var a = document.createElement('a');
+                    a.href = url;
+                    a.download = response.data.filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                } else {
+                    alert('Failed to export errors: ' + response.data);
+                }
+            },
+            complete: function() {
+                $button.prop('disabled', false);
+            }
+        });
+    });
+    
+    // Queue management actions
+    $('#bsp-retry-failed').on('click', function() {
+        if (!confirm('Retry all failed queue items?')) {
+            return;
+        }
+        
+        var $button = $(this);
+        $button.prop('disabled', true);
+        
+        $.ajax({
+            url: bsp_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'bsp_retry_failed_queue',
+                nonce: bsp_ajax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    alert(response.data.message);
+                    window.location.reload();
+                } else {
+                    alert('Failed to retry items: ' + response.data);
+                }
+            },
+            complete: function() {
+                $button.prop('disabled', false);
+            }
+        });
+    });
+    
+    $('#bsp-clear-completed').on('click', function() {
+        if (!confirm('Clear all completed queue items?')) {
+            return;
+        }
+        
+        var $button = $(this);
+        $button.prop('disabled', true);
+        
+        $.ajax({
+            url: bsp_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'bsp_clear_completed_queue',
+                nonce: bsp_ajax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    alert(response.data.message);
+                    window.location.reload();
+                } else {
+                    alert('Failed to clear items: ' + response.data);
+                }
+            },
+            complete: function() {
+                $button.prop('disabled', false);
+            }
+        });
+    });
+    
+    $('#bsp-clear-queue').on('click', function() {
+        if (!confirm('Clear ALL queue items? This cannot be undone!')) {
+            return;
+        }
+        
+        var $button = $(this);
+        $button.prop('disabled', true);
+        
+        $.ajax({
+            url: bsp_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'bsp_clear_all_queue',
+                nonce: bsp_ajax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    alert(response.data.message);
+                    window.location.reload();
+                } else {
+                    alert('Failed to clear queue: ' + response.data);
+                }
+            },
+            complete: function() {
+                $button.prop('disabled', false);
+            }
+        });
+    });
+    
+    // Progress polling for active sessions
+    function pollProgress() {
+        $('.bsp-progress-container').each(function() {
+            var $container = $(this);
+            var sessionId = $container.data('session-id');
+            
+            $.ajax({
+                url: bsp_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'bsp_get_progress',
+                    session_id: sessionId,
+                    nonce: bsp_ajax.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        var progress = response.data;
+                        
+                        // Update progress bar
+                        $container.find('.progress-bar').css('width', progress.percentage + '%');
+                        $container.find('.progress-percentage').text(progress.percentage + '%');
+                        $container.find('.progress-current').text(progress.current + ' of ' + progress.total + ' items');
+                        
+                        if (progress.current_item) {
+                            $container.find('.progress-current-item').text(progress.current_item);
+                        }
+                        
+                        // Stop polling if completed
+                        if (progress.status !== 'running') {
+                            $container.removeClass('active-progress');
+                        }
+                    }
+                }
+            });
+        });
+    }
+    
+    // Poll every 2 seconds if there are active progress sessions
+    if ($('.bsp-progress-container').length > 0) {
+        setInterval(pollProgress, 2000);
+    }
+});

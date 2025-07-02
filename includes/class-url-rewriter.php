@@ -66,29 +66,22 @@ class BSP_URL_Rewriter {
      */
     private function serve_static_file($file_path, $post_id) {
         // Set appropriate headers
-        $this->set_static_headers($file_path);
+        $this->set_static_headers($file_path, $post_id);
         
-        // Read and output the static file
-        $content = file_get_contents($file_path);
-        
-        if ($content === false) {
+        // Stream the file for better memory efficiency
+        if (!$this->stream_static_file($file_path, $post_id)) {
             // Log the error for debugging
-            error_log('BSP: Failed to read static file: ' . $file_path);
+            error_log('BSP: Failed to stream static file: ' . $file_path);
             return; // Fall back to dynamic rendering
         }
         
-        // Apply filters to allow modifications
-        $content = apply_filters('bsp_static_content', $content, $post_id);
-        
-        // Output the content and exit
-        echo $content;
         exit;
     }
     
     /**
      * Set appropriate headers for static files
      */
-    private function set_static_headers($file_path) {
+    private function set_static_headers($file_path, $post_id) {
         // Set content type
         header('Content-Type: text/html; charset=UTF-8');
         
@@ -100,8 +93,8 @@ class BSP_URL_Rewriter {
         $last_modified = filemtime($file_path);
         header('Last-Modified: ' . gmdate('D, d M Y H:i:s', $last_modified) . ' GMT');
         
-        // Set ETag
-        $etag = md5_file($file_path);
+        // Get ETag - try cached version first for performance
+        $etag = $this->get_cached_etag($file_path, $post_id);
         header('ETag: "' . $etag . '"');
         
         // Check if client has cached version
@@ -118,6 +111,85 @@ class BSP_URL_Rewriter {
         // Add custom header to indicate static serving
         header('X-BSP-Static-Served: true');
         header('X-BSP-Generated: ' . gmdate('D, d M Y H:i:s', $last_modified) . ' GMT');
+    }
+    
+    /**
+     * Stream static file with chunked reading for memory efficiency
+     */
+    private function stream_static_file($file_path, $post_id) {
+        $handle = @fopen($file_path, 'rb');
+        if ($handle === false) {
+            return false;
+        }
+        
+        // Clear any output buffers
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        
+        // For admin users, we need to add debug indicator
+        $add_indicator = current_user_can('manage_options');
+        $indicator_added = false;
+        $chunk_size = 8192; // 8KB chunks
+        
+        while (!feof($handle)) {
+            $chunk = fread($handle, $chunk_size);
+            
+            // Add indicator to first chunk containing <body> tag if admin
+            if ($add_indicator && !$indicator_added && stripos($chunk, '<body') !== false) {
+                $chunk = $this->add_admin_indicator_to_chunk($chunk, $post_id);
+                $indicator_added = true;
+            }
+            
+            echo $chunk;
+            
+            // Flush output to browser
+            if (ob_get_level() > 0) {
+                ob_flush();
+            }
+            flush();
+        }
+        
+        fclose($handle);
+        return true;
+    }
+    
+    /**
+     * Add admin indicator to chunk containing body tag
+     */
+    private function add_admin_indicator_to_chunk($chunk, $post_id) {
+        $indicator = '<div style="position:fixed;top:0;right:0;background:#0073aa;color:white;padding:10px;z-index:99999;font-family:sans-serif;">
+            ⚡ Static Version (Admin View Only)
+        </div>';
+        
+        // Find body tag and insert after it
+        $chunk = preg_replace('/(<body[^>]*>)/i', '$1' . $indicator, $chunk);
+        
+        return $chunk;
+    }
+    
+    /**
+     * Get cached ETag or calculate if needed
+     */
+    private function get_cached_etag($file_path, $post_id) {
+        // Try to get cached ETag first
+        $cached_etag = get_post_meta($post_id, '_bsp_static_etag', true);
+        $etag_time = get_post_meta($post_id, '_bsp_static_etag_time', true);
+        $file_mtime = filemtime($file_path);
+        
+        // If ETag is cached and file hasn't been modified externally
+        if ($cached_etag && $etag_time && $etag_time >= $file_mtime) {
+            return $cached_etag;
+        }
+        
+        // Generate new ETag
+        $etag = md5_file($file_path);
+        
+        // Cache it for next time
+        update_post_meta($post_id, '_bsp_static_etag', $etag);
+        update_post_meta($post_id, '_bsp_static_etag_time', time());
+        
+        return $etag;
     }
     
     /**

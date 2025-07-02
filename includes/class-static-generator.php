@@ -14,20 +14,73 @@ class BSP_Static_Generator {
      * Generate static HTML for a specific page
      */
     public function generate_static_page($post_id) {
+        // Get instances
+        $lock_manager = BSP_File_Lock_Manager::get_instance();
+        $error_handler = BSP_Error_Handler::get_instance();
+        
+        // Try to acquire lock
+        if (!$lock_manager->acquire_lock($post_id)) {
+            $error_handler->log_error(
+                'static_generation',
+                'Could not acquire lock for post ID: ' . $post_id . ' - generation already in progress',
+                'warning',
+                array('post_id' => $post_id)
+            );
+            return array(
+                'success' => false,
+                'error' => 'Generation already in progress for this page'
+            );
+        }
+        
         try {
-            error_log('BSP: Starting static generation for post ID: ' . $post_id);
+            // Track generation start time
+            $start_time = microtime(true);
+            
+            // Check memory before starting
+            if (!$this->check_memory_usage()) {
+                $lock_manager->release_lock($post_id);
+                $error_handler->log_error(
+                    'static_generation',
+                    'Insufficient memory available for static generation',
+                    'error',
+                    array('post_id' => $post_id, 'memory_limit' => ini_get('memory_limit'))
+                );
+                return array(
+                    'success' => false,
+                    'error' => 'Insufficient memory available for static generation'
+                );
+            }
+            
+            $error_handler->log_error(
+                'static_generation',
+                'Starting static generation for post ID: ' . $post_id,
+                'info',
+                array('post_id' => $post_id)
+            );
             
             // Get the post
             $post = get_post($post_id);
             if (!$post || $post->post_status !== 'publish') {
-                error_log('BSP: Post not found or not published: ' . $post_id);
+                $error_handler->log_error(
+                    'static_generation',
+                    'Post not found or not published: ' . $post_id,
+                    'error',
+                    array('post_id' => $post_id)
+                );
+                $lock_manager->release_lock($post_id);
                 return false;
             }
             
             // Get the page URL
             $page_url = get_permalink($post_id);
             if (!$page_url) {
-                error_log('BSP: Could not get permalink for post: ' . $post_id);
+                $error_handler->log_error(
+                    'static_generation',
+                    'Could not get permalink for post: ' . $post_id,
+                    'error',
+                    array('post_id' => $post_id)
+                );
+                $lock_manager->release_lock($post_id);
                 return false;
             }
             
@@ -35,7 +88,13 @@ class BSP_Static_Generator {
             $html_content = $this->capture_page_html($page_url, $post_id);
             
             if (!$html_content) {
-                error_log('BSP: Failed to capture HTML for post: ' . $post_id);
+                $error_handler->log_error(
+                    'static_generation',
+                    'Failed to capture HTML for post: ' . $post_id,
+                    'error',
+                    array('post_id' => $post_id, 'url' => $page_url)
+                );
+                $lock_manager->release_lock($post_id);
                 return false;
             }
             
@@ -51,18 +110,49 @@ class BSP_Static_Generator {
                 update_post_meta($post_id, '_bsp_static_generated', current_time('mysql'));
                 update_post_meta($post_id, '_bsp_static_file_size', filesize($static_file_path));
                 
-                error_log('BSP: Static file generated successfully for post: ' . $post_id);
+                // Calculate and store ETag for caching
+                $etag = md5_file($static_file_path);
+                update_post_meta($post_id, '_bsp_static_etag', $etag);
+                update_post_meta($post_id, '_bsp_static_etag_time', time());
+                
+                // Track generation time
+                $generation_time = microtime(true) - $start_time;
+                BSP_Stats_Cache::track_generation_time($generation_time);
+                
+                $error_handler->log_error(
+                    'static_generation',
+                    sprintf('Static file generated successfully for post %d in %.2f seconds', $post_id, $generation_time),
+                    'info',
+                    array(
+                        'post_id' => $post_id,
+                        'generation_time' => $generation_time,
+                        'file_size' => filesize($static_file_path)
+                    )
+                );
                 
                 // Fire action for other plugins to hook into
                 do_action('bsp_static_page_generated', $post_id, $static_file_path);
                 
+                // Release lock on success
+                $lock_manager->release_lock($post_id);
+                
                 return true;
             }
             
+            // Release lock on failure
+            $lock_manager->release_lock($post_id);
             return false;
             
         } catch (Exception $e) {
-            error_log('BSP: Exception during static generation: ' . $e->getMessage());
+            $error_handler->log_error(
+                'static_generation',
+                'Exception during static generation: ' . $e->getMessage(),
+                'critical',
+                array('post_id' => $post_id),
+                $e
+            );
+            // Always release lock in case of exception
+            $lock_manager->release_lock($post_id);
             return false;
         }
     }
@@ -105,20 +195,35 @@ class BSP_Static_Generator {
         remove_filter('bsp_disable_static_serving', '__return_true');
         
         if (is_wp_error($response)) {
-            error_log('BSP: WordPress request failed: ' . $response->get_error_message());
+            BSP_Error_Handler::get_instance()->log_error(
+                'static_generation',
+                'WordPress request failed: ' . $response->get_error_message(),
+                'error',
+                array('url' => $url, 'post_id' => $post_id)
+            );
             return false;
         }
         
         $response_code = wp_remote_retrieve_response_code($response);
         if ($response_code !== 200) {
-            error_log('BSP: HTTP error ' . $response_code . ' for URL: ' . $url);
+            BSP_Error_Handler::get_instance()->log_error(
+                'static_generation',
+                'HTTP error ' . $response_code . ' for URL: ' . $url,
+                'error',
+                array('url' => $url, 'post_id' => $post_id, 'response_code' => $response_code)
+            );
             return false;
         }
         
         $html = wp_remote_retrieve_body($response);
         
         if (empty($html)) {
-            error_log('BSP: Empty response body for URL: ' . $url);
+            BSP_Error_Handler::get_instance()->log_error(
+                'static_generation',
+                'Empty response body for URL: ' . $url,
+                'error',
+                array('url' => $url, 'post_id' => $post_id)
+            );
             return false;
         }
         
@@ -208,7 +313,7 @@ class BSP_Static_Generator {
     }
     
     /**
-     * Save static HTML file
+     * Save static HTML file with atomic operation
      */
     private function save_static_file($file_path, $html_content) {
         // Ensure directory exists
@@ -217,16 +322,31 @@ class BSP_Static_Generator {
             wp_mkdir_p($dir);
         }
         
-        // Save the file
-        $result = file_put_contents($file_path, $html_content);
+        // Use temporary file for atomic write
+        $temp_file = $file_path . '.tmp.' . uniqid();
+        
+        // Save to temporary file first
+        $result = file_put_contents($temp_file, $html_content, LOCK_EX);
         
         if ($result === false) {
-            error_log('BSP: Failed to save static file: ' . $file_path);
+            error_log('BSP: Failed to save temporary file: ' . $temp_file);
+            if (file_exists($temp_file)) {
+                @unlink($temp_file);
+            }
             return false;
         }
         
-        // Set appropriate permissions
-        chmod($file_path, 0644);
+        // Set appropriate permissions on temp file
+        @chmod($temp_file, 0644);
+        
+        // Atomically move temp file to final location
+        if (!@rename($temp_file, $file_path)) {
+            error_log('BSP: Failed to move temp file to final location: ' . $file_path);
+            if (file_exists($temp_file)) {
+                @unlink($temp_file);
+            }
+            return false;
+        }
         
         return true;
     }
@@ -299,6 +419,29 @@ class BSP_Static_Generator {
         }
         
         return false;
+    }
+    
+    /**
+     * Check memory usage before operation
+     */
+    private function check_memory_usage() {
+        $memory_limit = wp_convert_hr_to_bytes(ini_get('memory_limit'));
+        $memory_usage = memory_get_usage(true);
+        $memory_available = $memory_limit - $memory_usage;
+        
+        // Require at least 50MB free memory
+        $required_memory = 50 * MB_IN_BYTES;
+        
+        if ($memory_available < $required_memory) {
+            error_log(sprintf(
+                'BSP: Low memory warning - Available: %s, Required: %s',
+                size_format($memory_available),
+                size_format($required_memory)
+            ));
+            return false;
+        }
+        
+        return true;
     }
     
     /**
