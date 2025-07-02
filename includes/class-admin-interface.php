@@ -107,6 +107,9 @@ class BSP_Admin_Interface {
                     }
                     ?>
                 </a>
+                <a href="?page=breakdance-static-pages&tab=seo" class="nav-tab <?php echo $current_tab === 'seo' ? 'nav-tab-active' : ''; ?>">
+                    <?php _e('SEO Protection', 'breakdance-static-pages'); ?>
+                </a>
                 <a href="?page=breakdance-static-pages&tab=settings" class="nav-tab <?php echo $current_tab === 'settings' ? 'nav-tab-active' : ''; ?>">
                     <?php _e('Settings', 'breakdance-static-pages'); ?>
                 </a>
@@ -123,6 +126,9 @@ class BSP_Admin_Interface {
                         break;
                     case 'queue':
                         $this->render_queue_tab();
+                        break;
+                    case 'seo':
+                        $this->render_seo_tab();
                         break;
                     case 'settings':
                         $this->render_settings_tab();
@@ -900,6 +906,133 @@ class BSP_Admin_Interface {
         }
     }
     
+    /**
+     * Render SEO tab content
+     */
+    private function render_seo_tab() {
+        $seo_recommendations = BSP_SEO_Protection::get_seo_recommendations();
+        $seo_validation = BSP_SEO_Protection::validate_seo_config();
+        ?>
+        <div class="bsp-seo-tab">
+            <h2><?php _e('SEO Protection Status', 'breakdance-static-pages'); ?></h2>
+            
+            <div class="notice notice-info">
+                <p><strong><?php _e('SEO Protection Overview:', 'breakdance-static-pages'); ?></strong></p>
+                <p><?php _e('This plugin automatically protects your site from duplicate content issues by adding proper SEO tags to static files. Static files include canonical URLs pointing to your original dynamic pages and noindex meta tags to prevent search engines from indexing the static versions.', 'breakdance-static-pages'); ?></p>
+            </div>
+
+            <h3><?php _e('Protection Features', 'breakdance-static-pages'); ?></h3>
+            <table class="widefat fixed striped">
+                <thead>
+                    <tr>
+                        <th style="width: 200px;"><?php _e('Feature', 'breakdance-static-pages'); ?></th>
+                        <th style="width: 80px;"><?php _e('Status', 'breakdance-static-pages'); ?></th>
+                        <th><?php _e('Description', 'breakdance-static-pages'); ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($seo_recommendations as $key => $recommendation): ?>
+                    <tr>
+                        <td><strong><?php echo esc_html($recommendation['title']); ?></strong></td>
+                        <td>
+                            <?php if ($recommendation['status'] === 'good'): ?>
+                                <span class="dashicons dashicons-yes" style="color: #46b450;"></span>
+                            <?php elseif ($recommendation['status'] === 'warning'): ?>
+                                <span class="dashicons dashicons-warning" style="color: #ffb900;"></span>
+                            <?php else: ?>
+                                <span class="dashicons dashicons-no" style="color: #dc3232;"></span>
+                            <?php endif; ?>
+                        </td>
+                        <td><?php echo esc_html($recommendation['description']); ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+
+            <h3><?php _e('Configuration Validation', 'breakdance-static-pages'); ?></h3>
+            <table class="widefat fixed striped">
+                <thead>
+                    <tr>
+                        <th style="width: 200px;"><?php _e('Check', 'breakdance-static-pages'); ?></th>
+                        <th style="width: 80px;"><?php _e('Status', 'breakdance-static-pages'); ?></th>
+                        <th><?php _e('Details', 'breakdance-static-pages'); ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($seo_validation as $key => $validation): ?>
+                    <tr>
+                        <td><strong><?php echo esc_html(ucwords(str_replace('_', ' ', $key))); ?></strong></td>
+                        <td>
+                            <?php if ($validation['status'] === 'good'): ?>
+                                <span class="dashicons dashicons-yes" style="color: #46b450;"></span>
+                            <?php elseif ($validation['status'] === 'warning'): ?>
+                                <span class="dashicons dashicons-warning" style="color: #ffb900;"></span>
+                            <?php elseif ($validation['status'] === 'info'): ?>
+                                <span class="dashicons dashicons-info" style="color: #72aee6;"></span>
+                            <?php else: ?>
+                                <span class="dashicons dashicons-no" style="color: #dc3232;"></span>
+                            <?php endif; ?>
+                        </td>
+                        <td><?php echo esc_html($validation['message']); ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+
+            <h3><?php _e('Technical Implementation', 'breakdance-static-pages'); ?></h3>
+            <div class="bsp-seo-details">
+                <h4><?php _e('Meta Tags Added to Static Files:', 'breakdance-static-pages'); ?></h4>
+                <ul>
+                    <li><code>&lt;link rel="canonical" href="original-page-url"&gt;</code> - Points search engines to the original dynamic page</li>
+                    <li><code>&lt;meta name="robots" content="noindex, nofollow"&gt;</code> - Prevents indexing of static versions</li>
+                    <li><code>&lt;meta name="googlebot" content="noindex, nofollow"&gt;</code> - Specific Google bot instructions</li>
+                    <li><code>&lt;meta name="bingbot" content="noindex, nofollow"&gt;</code> - Specific Bing bot instructions</li>
+                </ul>
+
+                <h4><?php _e('HTTP Headers Added:', 'breakdance-static-pages'); ?></h4>
+                <ul>
+                    <li><code>X-Robots-Tag: noindex, nofollow</code> - Server-level robots directive</li>
+                    <li><code>X-Robots-Tag: noarchive, nosnippet</code> - Additional protection</li>
+                    <li><code>Link: &lt;original-url&gt;; rel="canonical"</code> - HTTP canonical header</li>
+                </ul>
+
+                <h4><?php _e('Robots.txt Rules:', 'breakdance-static-pages'); ?></h4>
+                <pre style="background: #f0f0f0; padding: 10px; border-radius: 4px;">
+# Breakdance Static Pages - Prevent indexing of static files
+User-agent: *
+Disallow: /wp-content/uploads/breakdance-static-pages/
+Disallow: /wp-content/uploads/breakdance-static-pages/pages/
+Disallow: /wp-content/uploads/breakdance-static-pages/assets/
+                </pre>
+            </div>
+
+            <div class="notice notice-warning">
+                <p><strong><?php _e('Important:', 'breakdance-static-pages'); ?></strong></p>
+                <ul>
+                    <li><?php _e('Static files are designed for performance improvement, not direct user access', 'breakdance-static-pages'); ?></li>
+                    <li><?php _e('Only the original dynamic URLs should appear in search results', 'breakdance-static-pages'); ?></li>
+                    <li><?php _e('Users will automatically get static versions served on the original URLs for better performance', 'breakdance-static-pages'); ?></li>
+                    <li><?php _e('All SEO benefits (meta tags, structured data, etc.) are preserved from the original dynamic pages', 'breakdance-static-pages'); ?></li>
+                </ul>
+            </div>
+
+            <h3><?php _e('Customization Options', 'breakdance-static-pages'); ?></h3>
+            <p><?php _e('Advanced users can customize SEO protection using these filters:', 'breakdance-static-pages'); ?></p>
+            <pre style="background: #f0f0f0; padding: 10px; border-radius: 4px;">
+// Customize robots meta content for static files
+add_filter('bsp_static_robots_meta', function($content, $post_id) {
+    return 'noindex, nofollow, noarchive';
+}, 10, 2);
+
+// Modify cache age for static files  
+add_filter('bsp_static_cache_max_age', function($age) {
+    return 7200; // 2 hours
+});
+            </pre>
+        </div>
+        <?php
+    }
+
     /**
      * Show admin notices
      */

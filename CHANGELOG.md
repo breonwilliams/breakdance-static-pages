@@ -5,6 +5,29 @@ All notable changes to the Breakdance Static Pages plugin will be documented in 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2024-12-02
+
+### Added
+- **SEO Protection System** - Comprehensive multi-layer duplicate content prevention
+- **Canonical URL Implementation** - All static files point to original dynamic pages
+- **Robots Meta Tags** - Multiple noindex directives (general, Google, Bing)
+- **HTTP Headers Protection** - X-Robots-Tag headers for server-level protection
+- **Robots.txt Integration** - Automatic disallow rules for static directories
+- **Sitemap Filtering** - Prevents static URLs from appearing in XML sitemaps
+- **SEO Plugin Compatibility** - Full support for Yoast, RankMath, AIOSEO
+- **SEO Protection Tab** - Admin interface for monitoring SEO status
+- **Real-time UI Updates** - Fixed action buttons not updating after deletion
+
+### Fixed
+- **UI Bug** - Action buttons (Generate, Delete, View Static) now update in real-time after deletion
+- **SEO Risk** - Static files no longer pose duplicate content risks
+- **Missing Headers** - Added comprehensive SEO protection headers to all static files
+
+### Security
+- **SEO Protection** - Prevents search engines from indexing static file versions
+- **Canonical URLs** - Ensures proper URL authority for search engines
+- **Multi-layer Protection** - Headers, meta tags, robots.txt, and sitemap filtering
+
 ## [1.3.0] - 2024-12-01
 
 ### Added

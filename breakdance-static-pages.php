@@ -11,7 +11,7 @@
  * Plugin Name:       Breakdance Static Pages
  * Plugin URI:        https://yoursite.com/plugins/breakdance-static-pages/
  * Description:       Convert Breakdance pages with ACF fields into lightning-fast static HTML files for dramatically improved performance.
- * Version:           1.3.0
+ * Version:           1.3.1
  * Requires at least: 5.0
  * Requires PHP:      7.4
  * Author:            Your Name
@@ -28,7 +28,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define plugin constants.
-define( 'BSP_VERSION', '1.3.0' );
+define( 'BSP_VERSION', '1.3.1' );
 define( 'BSP_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'BSP_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'BSP_PLUGIN_FILE', __FILE__ );
@@ -179,6 +179,7 @@ final class Breakdance_Static_Pages {
 		require_once BSP_PLUGIN_DIR . 'includes/class-ajax-handler.php';
 		require_once BSP_PLUGIN_DIR . 'includes/class-url-rewriter.php';
 		require_once BSP_PLUGIN_DIR . 'includes/class-performance-monitor.php';
+		require_once BSP_PLUGIN_DIR . 'includes/class-seo-protection.php';
 	}
 
 	/**
@@ -222,6 +223,9 @@ final class Breakdance_Static_Pages {
 		if ( is_admin() ) {
 			new BSP_Health_Check();
 		}
+
+		// Initialize SEO protection.
+		new BSP_SEO_Protection();
 
 		// Hook into content updates.
 		add_action( 'acf/save_post', array( $this, 'handle_content_update' ), 20 );

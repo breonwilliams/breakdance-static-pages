@@ -85,6 +85,16 @@ class BSP_URL_Rewriter {
         // Set content type
         header('Content-Type: text/html; charset=UTF-8');
         
+        // Add SEO protection headers to prevent duplicate content
+        header('X-Robots-Tag: noindex, nofollow');
+        header('X-Robots-Tag: noarchive, nosnippet');
+        
+        // Add canonical URL header pointing to original dynamic page
+        $canonical_url = get_permalink($post_id);
+        if ($canonical_url) {
+            header('Link: <' . $canonical_url . '>; rel="canonical"');
+        }
+        
         // Set cache headers
         $max_age = apply_filters('bsp_static_cache_max_age', 3600); // 1 hour default
         header('Cache-Control: public, max-age=' . $max_age);
@@ -108,9 +118,10 @@ class BSP_URL_Rewriter {
             exit;
         }
         
-        // Add custom header to indicate static serving
+        // Add custom headers to indicate static serving
         header('X-BSP-Static-Served: true');
         header('X-BSP-Generated: ' . gmdate('D, d M Y H:i:s', $last_modified) . ' GMT');
+        header('X-BSP-Original-URL: ' . $canonical_url);
     }
     
     /**
