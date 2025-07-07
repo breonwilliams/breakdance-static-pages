@@ -56,6 +56,9 @@ class BSP_Ajax_Handler {
 		add_action( 'wp_ajax_bsp_retry_failed_queue', array( $this, 'handle_retry_failed_queue' ) );
 		add_action( 'wp_ajax_bsp_clear_completed_queue', array( $this, 'handle_clear_completed_queue' ) );
 		add_action( 'wp_ajax_bsp_clear_all_queue', array( $this, 'handle_clear_all_queue' ) );
+
+		// Data repair actions.
+		add_action( 'wp_ajax_bsp_run_data_repair', array( $this, 'handle_data_repair' ) );
 	}
 
 	/**
@@ -737,6 +740,106 @@ class BSP_Ajax_Handler {
 
 		wp_send_json_success( array(
 			'message' => __( 'Queue cleared successfully', 'breakdance-static-pages' ),
+		) );
+	}
+
+	/**
+	 * Handle data repair requests
+	 *
+	 * @since 1.3.3
+	 */
+	public function handle_data_repair() {
+		// Verify nonce and permissions.
+		$nonce = isset( $_POST['nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['nonce'] ) ) : '';
+		$verification = BSP_Security_Helper::verify_ajax_request( $nonce );
+
+		if ( is_wp_error( $verification ) ) {
+			wp_send_json_error( array(
+				'message' => $verification->get_error_message(),
+			) );
+		}
+
+		$repair_type = isset( $_POST['repair_type'] ) ? sanitize_text_field( $_POST['repair_type'] ) : '';
+
+		if ( empty( $repair_type ) ) {
+			wp_send_json_error( array(
+				'message' => __( 'Invalid repair type', 'breakdance-static-pages' ),
+			) );
+		}
+
+		$results = array();
+		$message = '';
+
+		switch ( $repair_type ) {
+			case 'all':
+				$results = BSP_Data_Repair::run_all_repairs();
+				$total_repaired = 0;
+				foreach ( $results as $key => $result ) {
+					if ( isset( $result['repaired'] ) ) {
+						$total_repaired += $result['repaired'];
+					} elseif ( isset( $result['fixed'] ) ) {
+						$total_repaired += $result['fixed'];
+					} elseif ( isset( $result['synced'] ) ) {
+						$total_repaired += $result['synced'];
+					} elseif ( is_int( $result ) ) {
+						$total_repaired += $result;
+					}
+				}
+				$message = sprintf(
+					__( 'All repairs completed. %d issues fixed. Stats cache cleared.', 'breakdance-static-pages' ),
+					$total_repaired
+				);
+				break;
+
+			case 'metadata':
+				$results = BSP_Data_Repair::repair_missing_metadata();
+				$message = sprintf(
+					__( 'Metadata repair completed. Checked %d files, repaired %d issues.', 'breakdance-static-pages' ),
+					$results['checked'],
+					$results['repaired']
+				);
+				break;
+
+			case 'meta_values':
+				$results = BSP_Data_Repair::fix_inconsistent_meta_values();
+				$message = sprintf(
+					__( 'Meta values fixed. Checked %d records, fixed %d issues.', 'breakdance-static-pages' ),
+					$results['checked'],
+					$results['fixed']
+				);
+				break;
+
+			case 'file_sync':
+				$results = BSP_Data_Repair::sync_files_with_database();
+				$message = sprintf(
+					__( 'File sync completed. Checked %d database records, synced %d issues.', 'breakdance-static-pages' ),
+					$results['db_checked'],
+					$results['synced']
+				);
+				break;
+
+			case 'orphaned':
+				$results = BSP_Data_Repair::clean_orphaned_data();
+				$message = sprintf(
+					__( 'Orphaned data cleaned. Removed %d metadata records and %d files.', 'breakdance-static-pages' ),
+					$results['metadata_cleaned'],
+					$results['files_cleaned']
+				);
+				break;
+
+			default:
+				wp_send_json_error( array(
+					'message' => __( 'Unknown repair type', 'breakdance-static-pages' ),
+				) );
+				return;
+		}
+
+		// Always invalidate stats cache after repairs
+		BSP_Stats_Cache::invalidate();
+
+		wp_send_json_success( array(
+			'message' => $message,
+			'results' => $results,
 		) );
 	}
 }

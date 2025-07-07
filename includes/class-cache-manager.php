@@ -302,4 +302,89 @@ class BSP_Cache_Manager {
         
         return $fixed_count;
     }
+    
+    /**
+     * Clean up orphaned static files
+     * 
+     * This method finds and removes static files that don't have corresponding
+     * published posts or have static generation disabled.
+     * 
+     * @return int Number of orphaned files cleaned up
+     */
+    public function cleanup_orphaned_files() {
+        $upload_dir = wp_upload_dir();
+        $static_dir = $upload_dir['basedir'] . '/breakdance-static-pages/pages';
+        $cleaned_count = 0;
+        
+        if (!file_exists($static_dir)) {
+            return 0;
+        }
+        
+        $files = glob($static_dir . '/*.html');
+        
+        if (empty($files)) {
+            return 0;
+        }
+        
+        foreach ($files as $file) {
+            $filename = basename($file, '.html');
+            $post_id = str_replace('page-', '', $filename);
+            
+            if (!is_numeric($post_id)) {
+                // Invalid filename format, remove it
+                if (unlink($file)) {
+                    $cleaned_count++;
+                }
+                continue;
+            }
+            
+            $post = get_post($post_id);
+            
+            // Check if post exists and is published
+            if (!$post || $post->post_status !== 'publish') {
+                if (unlink($file)) {
+                    $cleaned_count++;
+                    // Clean up any orphaned metadata
+                    delete_post_meta($post_id, '_bsp_static_generated');
+                    delete_post_meta($post_id, '_bsp_static_file_size');
+                    delete_post_meta($post_id, '_bsp_static_etag');
+                    delete_post_meta($post_id, '_bsp_static_etag_time');
+                }
+                continue;
+            }
+            
+            // Check if static generation is enabled
+            $static_enabled = get_post_meta($post_id, '_bsp_static_enabled', true);
+            if (!$static_enabled || $static_enabled !== '1') {
+                if (unlink($file)) {
+                    $cleaned_count++;
+                    // Clean up metadata for disabled pages
+                    delete_post_meta($post_id, '_bsp_static_generated');
+                    delete_post_meta($post_id, '_bsp_static_file_size');
+                    delete_post_meta($post_id, '_bsp_static_etag');
+                    delete_post_meta($post_id, '_bsp_static_etag_time');
+                }
+            }
+        }
+        
+        // Also clean up orphaned metadata (posts that no longer exist)
+        global $wpdb;
+        
+        $orphaned_meta = $wpdb->get_results(
+            "SELECT DISTINCT pm.post_id FROM {$wpdb->postmeta} pm 
+             LEFT JOIN {$wpdb->posts} p ON pm.post_id = p.ID 
+             WHERE pm.meta_key IN ('_bsp_static_enabled', '_bsp_static_generated', '_bsp_static_file_size', '_bsp_static_etag', '_bsp_static_etag_time') 
+             AND (p.ID IS NULL OR p.post_status != 'publish')"
+        );
+        
+        foreach ($orphaned_meta as $row) {
+            delete_post_meta($row->post_id, '_bsp_static_enabled');
+            delete_post_meta($row->post_id, '_bsp_static_generated');
+            delete_post_meta($row->post_id, '_bsp_static_file_size');
+            delete_post_meta($row->post_id, '_bsp_static_etag');
+            delete_post_meta($row->post_id, '_bsp_static_etag_time');
+        }
+        
+        return $cleaned_count;
+    }
 }

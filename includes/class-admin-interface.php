@@ -110,6 +110,16 @@ class BSP_Admin_Interface {
                 <a href="?page=breakdance-static-pages&tab=seo" class="nav-tab <?php echo $current_tab === 'seo' ? 'nav-tab-active' : ''; ?>">
                     <?php _e('SEO Protection', 'breakdance-static-pages'); ?>
                 </a>
+                <a href="?page=breakdance-static-pages&tab=repair" class="nav-tab <?php echo $current_tab === 'repair' ? 'nav-tab-active' : ''; ?>">
+                    <?php _e('Data Repair', 'breakdance-static-pages'); ?>
+                    <?php
+                    // Check if repair is needed
+                    $analysis = BSP_Data_Repair::analyze_data_state();
+                    if (!empty($analysis['recommendations'])) {
+                        echo ' <span class="dashicons dashicons-warning" style="color: #d63638;" title="' . esc_attr__('Issues detected', 'breakdance-static-pages') . '"></span>';
+                    }
+                    ?>
+                </a>
                 <a href="?page=breakdance-static-pages&tab=settings" class="nav-tab <?php echo $current_tab === 'settings' ? 'nav-tab-active' : ''; ?>">
                     <?php _e('Settings', 'breakdance-static-pages'); ?>
                 </a>
@@ -129,6 +139,9 @@ class BSP_Admin_Interface {
                         break;
                     case 'seo':
                         $this->render_seo_tab();
+                        break;
+                    case 'repair':
+                        $this->render_repair_tab();
                         break;
                     case 'settings':
                         $this->render_settings_tab();
@@ -733,6 +746,182 @@ class BSP_Admin_Interface {
                 </p>
             </div>
         </div>
+        <?php
+    }
+    
+    /**
+     * Render data repair tab
+     */
+    private function render_repair_tab() {
+        // Analyze current data state
+        $analysis = BSP_Data_Repair::analyze_data_state();
+        $summary = $analysis['summary'];
+        
+        ?>
+        <div class="bsp-admin-section">
+            <h2><?php _e('Data Analysis', 'breakdance-static-pages'); ?></h2>
+            
+            <div class="bsp-stats-grid">
+                <div class="bsp-stat-card">
+                    <h3><?php echo esc_html($summary['total_posts']); ?></h3>
+                    <p><?php _e('Total Posts/Pages', 'breakdance-static-pages'); ?></p>
+                </div>
+                <div class="bsp-stat-card">
+                    <h3><?php echo esc_html($summary['enabled_with_1']); ?></h3>
+                    <p><?php _e('Static Enabled', 'breakdance-static-pages'); ?></p>
+                </div>
+                <div class="bsp-stat-card">
+                    <h3><?php echo esc_html($summary['has_generated']); ?></h3>
+                    <p><?php _e('Has Generated Meta', 'breakdance-static-pages'); ?></p>
+                </div>
+                <div class="bsp-stat-card">
+                    <h3><?php echo esc_html($summary['actual_files']); ?></h3>
+                    <p><?php _e('Actual Static Files', 'breakdance-static-pages'); ?></p>
+                </div>
+            </div>
+            
+            <?php if (!empty($analysis['recommendations'])): ?>
+                <div class="notice notice-warning">
+                    <p><strong><?php _e('Issues Detected:', 'breakdance-static-pages'); ?></strong></p>
+                    <ul>
+                        <?php foreach ($analysis['recommendations'] as $recommendation): ?>
+                            <li><?php echo esc_html($recommendation); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php else: ?>
+                <div class="notice notice-success">
+                    <p><?php _e('No data inconsistencies detected. Your static pages data is healthy!', 'breakdance-static-pages'); ?></p>
+                </div>
+            <?php endif; ?>
+        </div>
+        
+        <div class="bsp-admin-section">
+            <h2><?php _e('Data Repair Actions', 'breakdance-static-pages'); ?></h2>
+            
+            <div class="bsp-action-cards">
+                <div class="bsp-action-card">
+                    <h3><?php _e('Quick Repair', 'breakdance-static-pages'); ?></h3>
+                    <p><?php _e('Run all repair operations to fix data inconsistencies, sync files with database, and clean orphaned data.', 'breakdance-static-pages'); ?></p>
+                    <button type="button" class="button button-primary" id="bsp-run-repair">
+                        <?php _e('Run All Repairs', 'breakdance-static-pages'); ?>
+                    </button>
+                </div>
+                
+                <div class="bsp-action-card">
+                    <h3><?php _e('Repair Missing Metadata', 'breakdance-static-pages'); ?></h3>
+                    <p><?php _e('Find static files without metadata and repair the database records.', 'breakdance-static-pages'); ?></p>
+                    <button type="button" class="button" id="bsp-repair-metadata">
+                        <?php _e('Repair Metadata', 'breakdance-static-pages'); ?>
+                    </button>
+                </div>
+                
+                <div class="bsp-action-card">
+                    <h3><?php _e('Fix Meta Values', 'breakdance-static-pages'); ?></h3>
+                    <p><?php _e('Standardize inconsistent meta values and remove invalid entries.', 'breakdance-static-pages'); ?></p>
+                    <button type="button" class="button" id="bsp-fix-meta-values">
+                        <?php _e('Fix Meta Values', 'breakdance-static-pages'); ?>
+                    </button>
+                </div>
+                
+                <div class="bsp-action-card">
+                    <h3><?php _e('Sync Files with Database', 'breakdance-static-pages'); ?></h3>
+                    <p><?php _e('Ensure database records match actual static files on disk.', 'breakdance-static-pages'); ?></p>
+                    <button type="button" class="button" id="bsp-sync-files">
+                        <?php _e('Sync Files', 'breakdance-static-pages'); ?>
+                    </button>
+                </div>
+                
+                <div class="bsp-action-card">
+                    <h3><?php _e('Clean Orphaned Data', 'breakdance-static-pages'); ?></h3>
+                    <p><?php _e('Remove metadata for deleted posts and files without corresponding posts.', 'breakdance-static-pages'); ?></p>
+                    <button type="button" class="button" id="bsp-clean-orphaned">
+                        <?php _e('Clean Orphaned Data', 'breakdance-static-pages'); ?>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bsp-admin-section">
+            <h2><?php _e('Additional Information', 'breakdance-static-pages'); ?></h2>
+            
+            <div class="bsp-info-section">
+                <h3><?php _e('Meta Value States', 'breakdance-static-pages'); ?></h3>
+                <ul>
+                    <li><?php printf(__('Posts with _bsp_static_enabled = "1": %d', 'breakdance-static-pages'), $summary['enabled_with_1']); ?></li>
+                    <li><?php printf(__('Posts with _bsp_static_enabled = "" (empty): %d', 'breakdance-static-pages'), $summary['enabled_empty']); ?></li>
+                    <li><?php printf(__('Posts without _bsp_static_enabled: %d', 'breakdance-static-pages'), $summary['enabled_null']); ?></li>
+                    <li><?php printf(__('Posts with file size metadata: %d', 'breakdance-static-pages'), $summary['has_file_size']); ?></li>
+                </ul>
+            </div>
+        </div>
+        
+        <script>
+        jQuery(document).ready(function($) {
+            // Run all repairs
+            $('#bsp-run-repair').on('click', function() {
+                if (!confirm('<?php _e('This will run all repair operations. Continue?', 'breakdance-static-pages'); ?>')) {
+                    return;
+                }
+                
+                var $button = $(this);
+                $button.prop('disabled', true).text('<?php _e('Running repairs...', 'breakdance-static-pages'); ?>');
+                
+                $.ajax({
+                    url: bsp_ajax.ajax_url,
+                    type: 'POST',
+                    data: {
+                        action: 'bsp_run_data_repair',
+                        repair_type: 'all',
+                        nonce: bsp_ajax.nonce
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            alert(response.data.message);
+                            window.location.reload();
+                        } else {
+                            alert('Error: ' + response.data);
+                        }
+                    },
+                    complete: function() {
+                        $button.prop('disabled', false).text('<?php _e('Run All Repairs', 'breakdance-static-pages'); ?>');
+                    }
+                });
+            });
+            
+            // Individual repair actions
+            $('#bsp-repair-metadata').on('click', function() { runRepair('metadata', this); });
+            $('#bsp-fix-meta-values').on('click', function() { runRepair('meta_values', this); });
+            $('#bsp-sync-files').on('click', function() { runRepair('file_sync', this); });
+            $('#bsp-clean-orphaned').on('click', function() { runRepair('orphaned', this); });
+            
+            function runRepair(type, button) {
+                var $button = $(button);
+                $button.prop('disabled', true);
+                
+                $.ajax({
+                    url: bsp_ajax.ajax_url,
+                    type: 'POST',
+                    data: {
+                        action: 'bsp_run_data_repair',
+                        repair_type: type,
+                        nonce: bsp_ajax.nonce
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            alert(response.data.message);
+                            window.location.reload();
+                        } else {
+                            alert('Error: ' + response.data);
+                        }
+                    },
+                    complete: function() {
+                        $button.prop('disabled', false);
+                    }
+                });
+            }
+        });
+        </script>
         <?php
     }
     
