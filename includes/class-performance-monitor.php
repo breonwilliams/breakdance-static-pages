@@ -245,30 +245,30 @@ class BSP_Performance_Monitor {
      * Dashboard widget content
      */
     public function dashboard_widget_content() {
-        $stats = $this->get_performance_stats(7);
-        $generation_stats = $this->get_generation_stats(7);
+        // Get main stats instead of performance stats
+        $stats = BSP_Stats_Cache::get_stats();
         
         ?>
-        <div class="bsp-dashboard-widget">
+        <div class="bsp-dashboard-widget" id="bsp_performance_widget">
             <div class="bsp-widget-stats">
                 <div class="bsp-stat-item">
-                    <span class="bsp-stat-number"><?php echo number_format($stats['total_views']); ?></span>
-                    <span class="bsp-stat-label">Total Views (7 days)</span>
+                    <span class="bsp-stat-number bsp-stat-enabled"><?php echo number_format($stats['static_enabled']); ?></span>
+                    <span class="bsp-stat-label">Static Enabled</span>
                 </div>
                 <div class="bsp-stat-item">
-                    <span class="bsp-stat-number"><?php echo $stats['static_percentage']; ?>%</span>
-                    <span class="bsp-stat-label">Served Statically</span>
-                </div>
-                <div class="bsp-stat-item">
-                    <span class="bsp-stat-number"><?php echo number_format($generation_stats['total_generations']); ?></span>
+                    <span class="bsp-stat-number bsp-stat-generated"><?php echo number_format($stats['static_generated']); ?></span>
                     <span class="bsp-stat-label">Files Generated</span>
+                </div>
+                <div class="bsp-stat-item">
+                    <span class="bsp-stat-number bsp-stat-size"><?php echo size_format($stats['total_size']); ?></span>
+                    <span class="bsp-stat-label">Total Size</span>
                 </div>
             </div>
             
-            <?php if ($generation_stats['average_time'] > 0): ?>
+            <?php if ($stats['performance']['avg_generation_time'] > 0): ?>
                 <div class="bsp-widget-details">
-                    <p><strong>Average Generation Time:</strong> <?php echo round($generation_stats['average_time'], 2); ?>s</p>
-                    <p><strong>Average File Size:</strong> <?php echo size_format($generation_stats['average_size']); ?></p>
+                    <p><strong>Average Generation Time:</strong> <?php echo round($stats['performance']['avg_generation_time'], 2); ?>s</p>
+                    <p><strong>Success Rate:</strong> <span class="bsp-stat-success-rate"><?php echo $stats['success_rate']; ?>%</span></p>
                 </div>
             <?php endif; ?>
             

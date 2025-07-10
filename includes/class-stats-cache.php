@@ -32,7 +32,7 @@ class BSP_Stats_Cache {
      *
      * @var int
      */
-    private static $default_expiry = 300; // 5 minutes
+    private static $default_expiry = 30; // 30 seconds for more real-time updates
     
     /**
      * Get cached stats or calculate if expired

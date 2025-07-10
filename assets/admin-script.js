@@ -635,32 +635,87 @@ jQuery(document).ready(function($) {
     }
 
     // Auto-refresh stats periodically
-    if ($('.bsp-stats-grid').length > 0) {
-        setInterval(function() {
-            $.ajax({
-                url: bsp_ajax.ajax_url,
-                type: 'POST',
-                data: {
-                    action: 'bsp_get_stats',
-                    nonce: bsp_ajax.nonce
-                },
-                success: function(response) {
-                    if (response.success) {
-                        // Update stats display
-                        var stats = response.data;
-                        $('.bsp-stats-grid .bsp-stat-card:nth-child(2) h3').text(stats.enabled_pages || 0);
-                        $('.bsp-stats-grid .bsp-stat-card:nth-child(3) h3').text(stats.generated_pages || 0);
-                        $('.bsp-stats-grid .bsp-stat-card:nth-child(4) h3').text(formatBytes(stats.total_size || 0));
+    function refreshStats() {
+        $.ajax({
+            url: bsp_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'bsp_get_stats',
+                nonce: bsp_ajax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Update stats display
+                    var stats = response.data;
+                    
+                    // Update main admin page stats
+                    if ($('.bsp-stats-grid').length > 0) {
+                        // Only update if we have valid data
+                        if (stats.total_pages !== undefined) {
+                            $('.bsp-stats-grid .bsp-stat-card:nth-child(1) h3').text(stats.total_pages.toLocaleString());
+                        }
+                        if (stats.enabled_pages !== undefined) {
+                            $('.bsp-stats-grid .bsp-stat-card:nth-child(2) h3').text(stats.enabled_pages.toLocaleString());
+                        }
+                        if (stats.generated_pages !== undefined) {
+                            $('.bsp-stats-grid .bsp-stat-card:nth-child(3) h3').text(stats.generated_pages.toLocaleString());
+                        }
+                        if (stats.total_size !== undefined) {
+                            $('.bsp-stats-grid .bsp-stat-card:nth-child(4) h3').text(formatBytes(stats.total_size));
+                        }
+                    }
+                    
+                    // Update dashboard widget stats if present
+                    if ($('#bsp_performance_widget').length > 0) {
+                        // Only update if we have valid data
+                        if (stats.enabled_pages !== undefined) {
+                            $('#bsp_performance_widget .bsp-stat-enabled').text(stats.enabled_pages.toLocaleString());
+                        }
+                        if (stats.generated_pages !== undefined) {
+                            $('#bsp_performance_widget .bsp-stat-generated').text(stats.generated_pages.toLocaleString());
+                        }
+                        if (stats.total_size !== undefined) {
+                            $('#bsp_performance_widget .bsp-stat-size').text(formatBytes(stats.total_size));
+                        }
+                        if (stats.success_rate !== undefined) {
+                            $('#bsp_performance_widget .bsp-stat-success-rate').text(stats.success_rate + '%');
+                        }
                     }
                 }
-            });
-        }, 30000); // Update every 30 seconds
+            }
+        });
+    }
+    
+    // Initial load and periodic refresh
+    if ($('.bsp-stats-grid').length > 0 || $('#bsp_performance_widget').length > 0) {
+        // Refresh stats every 10 seconds for better real-time updates
+        setInterval(refreshStats, 10000);
+        
+        // Also refresh immediately after any operation that might change stats
+        $(document).ajaxComplete(function(event, xhr, settings) {
+            if (settings.data && (
+                settings.data.indexOf('bsp_generate') !== -1 ||
+                settings.data.indexOf('bsp_delete') !== -1 ||
+                settings.data.indexOf('bsp_toggle_static') !== -1
+            )) {
+                // Wait a moment for the operation to complete
+                setTimeout(refreshStats, 1000);
+            }
+        });
     }
 
     /**
      * Format bytes to human readable format
      */
     function formatBytes(bytes, decimals) {
+        // Handle invalid inputs gracefully
+        if (bytes === undefined || bytes === null || isNaN(bytes)) {
+            return '0 Bytes';
+        }
+        
+        // Convert to number and handle non-numeric values
+        bytes = parseInt(bytes) || 0;
+        
         decimals = decimals || 2;
         if (bytes === 0) return '0 Bytes';
         

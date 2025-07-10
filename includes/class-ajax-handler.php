@@ -386,10 +386,20 @@ class BSP_Ajax_Handler {
 		}
 
 		try {
-			// Use cached stats for better performance.
-			$stats = BSP_Stats_Cache::get_detailed_stats();
+			// Force refresh stats to get real-time data
+			$stats = BSP_Stats_Cache::get_stats( true );
 
-			wp_send_json_success( $stats );
+			// Format the response to match what the JavaScript expects
+			$response = array(
+				'total_pages' => $stats['total_pages'],
+				'enabled_pages' => $stats['static_enabled'],
+				'generated_pages' => $stats['static_generated'],
+				'total_size' => $stats['total_size'],
+				'success_rate' => $stats['success_rate'],
+				'performance' => $stats['performance'],
+			);
+
+			wp_send_json_success( $response );
 		} catch ( Exception $e ) {
 			wp_send_json_error( array(
 				'message' => sprintf(

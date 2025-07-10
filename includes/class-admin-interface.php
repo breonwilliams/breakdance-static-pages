@@ -35,7 +35,8 @@ class BSP_Admin_Interface {
      * Enqueue admin scripts and styles
      */
     public function enqueue_admin_scripts($hook) {
-        if ($hook !== 'tools_page_breakdance-static-pages' && $hook !== 'post.php' && $hook !== 'post-new.php') {
+        // Include dashboard in allowed hooks
+        if ($hook !== 'tools_page_breakdance-static-pages' && $hook !== 'post.php' && $hook !== 'post-new.php' && $hook !== 'index.php') {
             return;
         }
         
