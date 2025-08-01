@@ -156,8 +156,10 @@ class BSP_Ajax_Handler {
 		}
 
 		try {
-			// Increase time limit for bulk operations.
-			set_time_limit( 0 );
+			// Set reasonable time limit for bulk operations (30 seconds max per request).
+			if ( function_exists( 'set_time_limit' ) ) {
+				@set_time_limit( 30 );
+			}
 
 			// Initialize progress tracking.
 			$progress_tracker = BSP_Progress_Tracker::get_instance();
@@ -172,18 +174,36 @@ class BSP_Ajax_Handler {
 			// Mark progress as complete.
 			$progress_tracker->complete_progress( $session_id );
 
-			wp_send_json_success( array(
-				'message' => sprintf(
+			// Check if operation was interrupted due to memory/time limits
+			$total_processed = $result['success_count'] + $result['failure_count'];
+			$remaining = count($post_ids) - $total_processed;
+			
+			if ($remaining > 0) {
+				$message = sprintf(
+					/* translators: 1: number of successful operations, 2: number of errors, 3: number remaining */
+					__( 'Partial bulk generation: %1$d successful, %2$d errors. %3$d items remaining due to resource limits.', 'breakdance-static-pages' ),
+					$result['success_count'],
+					$result['failure_count'],
+					$remaining
+				);
+			} else {
+				$message = sprintf(
 					/* translators: 1: number of successful operations, 2: number of errors */
 					__( 'Bulk generation completed. %1$d successful, %2$d errors.', 'breakdance-static-pages' ),
 					$result['success_count'],
 					$result['failure_count']
-				),
+				);
+			}
+			
+			wp_send_json_success( array(
+				'message'       => $message,
 				'session_id'    => $session_id,
 				'results'       => $result['completed'],
 				'failed'        => $result['failed'],
 				'success_count' => $result['success_count'],
 				'error_count'   => $result['failure_count'],
+				'remaining'     => $remaining,
+				'partial'       => $remaining > 0,
 			) );
 		} catch ( Exception $e ) {
 			wp_send_json_error( array(

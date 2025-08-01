@@ -16,6 +16,7 @@ class BSP_Admin_Interface {
         add_action('add_meta_boxes', array($this, 'add_meta_boxes'));
         add_action('save_post', array($this, 'save_meta_box_data'));
         add_action('admin_notices', array($this, 'show_admin_notices'));
+        add_action('admin_init', array($this, 'save_settings'));
     }
     
     /**
@@ -35,8 +36,39 @@ class BSP_Admin_Interface {
      * Enqueue admin scripts and styles
      */
     public function enqueue_admin_scripts($hook) {
-        // Include dashboard in allowed hooks
-        if ($hook !== 'tools_page_breakdance-static-pages' && $hook !== 'post.php' && $hook !== 'post-new.php' && $hook !== 'index.php') {
+        // Only load on plugin admin page
+        if ($hook === 'tools_page_breakdance-static-pages') {
+            // Load all scripts for plugin admin page
+        } 
+        // Only load on post edit screens for supported post types
+        elseif (($hook === 'post.php' || $hook === 'post-new.php')) {
+            global $post;
+            // Only load for pages and posts, not other post types
+            if (!$post || !in_array($post->post_type, array('page', 'post'), true)) {
+                return;
+            }
+        }
+        // Only load on dashboard if widget is enabled and user wants it
+        elseif ($hook === 'index.php') {
+            // Check if dashboard widget is disabled
+            if (get_option('bsp_disable_dashboard_widget', false)) {
+                return;
+            }
+            // Only enqueue minimal scripts needed for dashboard widget
+            wp_enqueue_script(
+                'bsp-dashboard-widget',
+                BSP_PLUGIN_URL . 'assets/dashboard-widget.js',
+                array('jquery'),
+                BSP_VERSION,
+                true
+            );
+            wp_localize_script('bsp-dashboard-widget', 'bsp_ajax', array(
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'nonce' => wp_create_nonce('bsp_nonce')
+            ));
+            return;
+        }
+        else {
             return;
         }
         
@@ -686,6 +718,27 @@ class BSP_Admin_Interface {
                 <table class="form-table">
                     <tr>
                         <th scope="row">
+                            <label><?php _e('Dashboard Widget', 'breakdance-static-pages'); ?></label>
+                        </th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="bsp_disable_dashboard_widget" value="1" <?php checked(get_option('bsp_disable_dashboard_widget', false)); ?> />
+                                <?php _e('Disable performance dashboard widget', 'breakdance-static-pages'); ?>
+                            </label>
+                            <p class="description"><?php _e('Disable the dashboard widget to improve admin performance', 'breakdance-static-pages'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">
+                            <label><?php _e('Batch Size', 'breakdance-static-pages'); ?></label>
+                        </th>
+                        <td>
+                            <input type="number" name="bsp_batch_size" value="<?php echo esc_attr(get_option('bsp_batch_size', 3)); ?>" min="1" max="10" />
+                            <p class="description"><?php _e('Number of pages to process at once during bulk operations (lower = more reliable on shared hosting)', 'breakdance-static-pages'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">
                             <label><?php _e('Cache Duration', 'breakdance-static-pages'); ?></label>
                         </th>
                         <td>
@@ -1238,5 +1291,39 @@ add_filter('bsp_static_cache_max_age', function($age) {
                  __('Error regenerating static page. Please check the error logs.', 'breakdance-static-pages') . 
                  '</p></div>';
         }
+        
+        if (isset($_GET['bsp_settings_saved'])) {
+            echo '<div class="notice notice-success is-dismissible"><p>' . 
+                 __('Settings saved successfully!', 'breakdance-static-pages') . 
+                 '</p></div>';
+        }
+    }
+    
+    /**
+     * Save plugin settings
+     */
+    public function save_settings() {
+        if (!isset($_POST['bsp_settings_nonce']) || !wp_verify_nonce($_POST['bsp_settings_nonce'], 'bsp_settings')) {
+            return;
+        }
+        
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+        
+        // Save dashboard widget setting
+        $disable_widget = isset($_POST['bsp_disable_dashboard_widget']) ? 1 : 0;
+        update_option('bsp_disable_dashboard_widget', $disable_widget);
+        
+        // Save batch size setting
+        if (isset($_POST['bsp_batch_size'])) {
+            $batch_size = intval($_POST['bsp_batch_size']);
+            $batch_size = max(1, min(10, $batch_size)); // Ensure between 1-10
+            update_option('bsp_batch_size', $batch_size);
+        }
+        
+        // Redirect to avoid resubmission
+        wp_safe_redirect(add_query_arg('bsp_settings_saved', '1', wp_get_referer()));
+        exit;
     }
 }

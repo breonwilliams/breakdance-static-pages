@@ -157,7 +157,7 @@ jQuery(document).ready(function($) {
                         }
                     }
                 });
-            }, 500); // Poll every 500ms for smoother updates
+            }, 2000); // Poll every 2 seconds to reduce server load
             
             // Then start the bulk generation request
             $.ajax({
@@ -177,7 +177,31 @@ jQuery(document).ready(function($) {
                         
                         BSP_Admin.updateProgress(100, 'Completed!');
                         BSP_Admin.showSuccess(response.data.message);
-                        BSP_Admin.refreshPageData(selectedIds);
+                        
+                        // If partial results, offer to continue
+                        if (response.data.partial && response.data.remaining > 0) {
+                            setTimeout(function() {
+                                if (confirm('The operation was interrupted due to resource limits. Would you like to continue processing the remaining ' + response.data.remaining + ' items?')) {
+                                    // Get IDs that weren't processed
+                                    var processedIds = Object.keys(response.data.results || {}).concat(Object.keys(response.data.failed || {}));
+                                    var remainingIds = selectedIds.filter(function(id) {
+                                        return processedIds.indexOf(id) === -1;
+                                    });
+                                    
+                                    // Process remaining items
+                                    if (remainingIds.length > 0) {
+                                        $('.bsp-page-checkbox').prop('checked', false);
+                                        remainingIds.forEach(function(id) {
+                                            $('.bsp-page-checkbox[value="' + id + '"]').prop('checked', true);
+                                        });
+                                        BSP_Admin.updateBulkActions();
+                                        $('#bsp-bulk-generate').click();
+                                    }
+                                }
+                            }, 1000);
+                        } else {
+                            BSP_Admin.refreshPageData(selectedIds);
+                        }
                     } else {
                         BSP_Admin.showError(response.data.message);
                     }
@@ -250,7 +274,7 @@ jQuery(document).ready(function($) {
                         }
                     }
                 });
-            }, 500); // Poll every 500ms for smoother updates
+            }, 2000); // Poll every 2 seconds to reduce server load
             
             // Then start the bulk deletion request
             $.ajax({
@@ -688,8 +712,8 @@ jQuery(document).ready(function($) {
     
     // Initial load and periodic refresh
     if ($('.bsp-stats-grid').length > 0 || $('#bsp_performance_widget').length > 0) {
-        // Refresh stats every 10 seconds for better real-time updates
-        setInterval(refreshStats, 10000);
+        // Refresh stats every 30 seconds to reduce server load
+        setInterval(refreshStats, 30000);
         
         // Also refresh immediately after any operation that might change stats
         $(document).ajaxComplete(function(event, xhr, settings) {

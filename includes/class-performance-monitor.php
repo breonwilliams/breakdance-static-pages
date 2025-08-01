@@ -232,6 +232,11 @@ class BSP_Performance_Monitor {
      * Add dashboard widget
      */
     public function add_dashboard_widget() {
+        // Check if dashboard widget is disabled
+        if (get_option('bsp_disable_dashboard_widget', false)) {
+            return;
+        }
+        
         if (current_user_can('manage_options')) {
             wp_add_dashboard_widget(
                 'bsp_performance_widget',

@@ -86,7 +86,7 @@ class BSP_Batch_Processor {
             'status' => 'pending',
             'started_at' => current_time('mysql'),
             'completed_at' => null,
-            'chunk_size' => isset($args['chunk_size']) ? $args['chunk_size'] : 10,
+            'chunk_size' => isset($args['chunk_size']) ? $args['chunk_size'] : intval(get_option('bsp_batch_size', 3)),
             'current_chunk' => 0,
             'args' => $args
         );

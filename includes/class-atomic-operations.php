@@ -293,9 +293,40 @@ class BSP_Atomic_Operations {
         try {
             $total = count($post_ids);
             $current = 0;
+            $start_time = microtime(true);
+            $batch_size = intval(get_option('bsp_batch_size', 3));
+            $batch_count = 0;
             
             foreach ($post_ids as $post_id) {
                 $current++;
+                $batch_count++;
+                
+                // Check memory usage
+                $memory_usage = memory_get_usage(true);
+                $memory_limit = self::get_memory_limit();
+                $memory_percent = ($memory_usage / $memory_limit) * 100;
+                
+                // If memory usage is above 80%, break and return partial results
+                if ($memory_percent > 80) {
+                    BSP_Error_Handler::get_instance()->log_error(
+                        'bulk_operation',
+                        sprintf('Memory limit approaching (%.1f%% used), stopping batch at item %d of %d', $memory_percent, $current, $total),
+                        'warning',
+                        array('memory_usage' => $memory_usage, 'memory_limit' => $memory_limit)
+                    );
+                    break;
+                }
+                
+                // Check execution time - break after 25 seconds to leave buffer
+                $elapsed_time = microtime(true) - $start_time;
+                if ($elapsed_time > 25) {
+                    BSP_Error_Handler::get_instance()->log_error(
+                        'bulk_operation',
+                        sprintf('Time limit approaching (%.1f seconds), stopping batch at item %d of %d', $elapsed_time, $current, $total),
+                        'warning'
+                    );
+                    break;
+                }
                 
                 // Update progress
                 if ($progress_tracker && $session_id) {
@@ -330,6 +361,12 @@ class BSP_Atomic_Operations {
                         );
                     }
                 }
+                
+                // After each batch, do a small cleanup
+                if ($batch_count >= $batch_size) {
+                    wp_cache_flush();
+                    $batch_count = 0;
+                }
             }
             
             return array(
@@ -363,6 +400,30 @@ class BSP_Atomic_Operations {
                 'rolled_back' => apply_filters('bsp_atomic_bulk_rollback_on_failure', false)
             );
         }
+    }
+    
+    /**
+     * Get PHP memory limit in bytes
+     * 
+     * @return int Memory limit in bytes
+     */
+    private static function get_memory_limit() {
+        $memory_limit = ini_get('memory_limit');
+        
+        if (preg_match('/^(\d+)(.)$/', $memory_limit, $matches)) {
+            if ($matches[2] == 'M') {
+                $memory_limit = $matches[1] * 1024 * 1024; // MB to bytes
+            } else if ($matches[2] == 'K') {
+                $memory_limit = $matches[1] * 1024; // KB to bytes
+            } else if ($matches[2] == 'G') {
+                $memory_limit = $matches[1] * 1024 * 1024 * 1024; // GB to bytes
+            }
+        } else {
+            // Default to 128MB if we can't parse
+            $memory_limit = 128 * 1024 * 1024;
+        }
+        
+        return $memory_limit;
     }
     
     /**
